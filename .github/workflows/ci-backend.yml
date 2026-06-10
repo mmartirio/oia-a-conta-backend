@@ -1,0 +1,50 @@
+name: CI Backend
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/ci-backend.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+
+jobs:
+  build:
+    name: Build & Test (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - discovery-service
+          - auth-service
+          - catalog-service
+          - table-service
+          - notification-service
+          - order-service
+          - api-gateway
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build ${{ matrix.service }}
+        working-directory: backend/${{ matrix.service }}
+        run: mvn -B package -DskipTests
+
+      - name: Test ${{ matrix.service }}
+        working-directory: backend/${{ matrix.service }}
+        run: mvn -B test
+
+      - name: Build Docker image
+        working-directory: backend/${{ matrix.service }}
+        run: docker build -t comanda-${{ matrix.service }}:${{ github.sha }} .

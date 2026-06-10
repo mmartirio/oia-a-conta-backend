@@ -37,7 +37,7 @@ services:
   # ─────────────────────────────────────────────
   discovery-service:
     build:
-      context: ./discovery-service
+      context: ./backend/discovery-service
       dockerfile: Dockerfile
     container_name: comanda-discovery
     ports:
@@ -55,7 +55,7 @@ services:
   # ─────────────────────────────────────────────
   auth-service:
     build:
-      context: ./auth-service
+      context: ./backend/auth-service
       dockerfile: Dockerfile
     container_name: comanda-auth
     environment:
@@ -85,7 +85,7 @@ services:
   # ─────────────────────────────────────────────
   catalog-service:
     build:
-      context: ./catalog-service
+      context: ./backend/catalog-service
       dockerfile: Dockerfile
     container_name: comanda-catalog
     environment:
@@ -114,7 +114,7 @@ services:
   # ─────────────────────────────────────────────
   table-service:
     build:
-      context: ./table-service
+      context: ./backend/table-service
       dockerfile: Dockerfile
     container_name: comanda-table
     environment:
@@ -143,7 +143,7 @@ services:
   # ─────────────────────────────────────────────
   notification-service:
     build:
-      context: ./notification-service
+      context: ./backend/notification-service
       dockerfile: Dockerfile
     container_name: comanda-notification
     environment:
@@ -167,7 +167,7 @@ services:
   # ─────────────────────────────────────────────
   order-service:
     build:
-      context: ./order-service
+      context: ./backend/order-service
       dockerfile: Dockerfile
     container_name: comanda-order
     environment:
@@ -200,7 +200,7 @@ services:
   # ─────────────────────────────────────────────
   api-gateway:
     build:
-      context: ./api-gateway
+      context: ./backend/api-gateway
       dockerfile: Dockerfile
     container_name: comanda-gateway
     environment:
