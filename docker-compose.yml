@@ -1,0 +1,235 @@
+version: '3.9'
+
+networks:
+  comanda-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
+services:
+
+  # ─────────────────────────────────────────────
+  # PostgreSQL — banco único com múltiplos schemas
+  # ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: comanda-postgres
+    environment:
+      POSTGRES_USER: comanda
+      POSTGRES_PASSWORD: comanda123
+      POSTGRES_DB: db_auth
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - comanda-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U comanda -d db_auth"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # Eureka Discovery Server
+  # ─────────────────────────────────────────────
+  discovery-service:
+    build:
+      context: ./discovery-service
+      dockerfile: Dockerfile
+    container_name: comanda-discovery
+    ports:
+      - "8761:8761"
+    networks:
+      - comanda-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8761/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # Auth Service
+  # ─────────────────────────────────────────────
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: comanda-auth
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_auth
+      SPRING_DATASOURCE_USERNAME: comanda
+      SPRING_DATASOURCE_PASSWORD: comanda123
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+      JWT_EXPIRATION: 86400000
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - comanda-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # Catalog Service
+  # ─────────────────────────────────────────────
+  catalog-service:
+    build:
+      context: ./catalog-service
+      dockerfile: Dockerfile
+    container_name: comanda-catalog
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_catalog
+      SPRING_DATASOURCE_USERNAME: comanda
+      SPRING_DATASOURCE_PASSWORD: comanda123
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - comanda-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # Table Service
+  # ─────────────────────────────────────────────
+  table-service:
+    build:
+      context: ./table-service
+      dockerfile: Dockerfile
+    container_name: comanda-table
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_table
+      SPRING_DATASOURCE_USERNAME: comanda
+      SPRING_DATASOURCE_PASSWORD: comanda123
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - comanda-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # Notification Service
+  # ─────────────────────────────────────────────
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: comanda-notification
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+    ports:
+      - "8085:8085"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - comanda-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8085/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # Order Service
+  # ─────────────────────────────────────────────
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    container_name: comanda-order
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_order
+      SPRING_DATASOURCE_USERNAME: comanda
+      SPRING_DATASOURCE_PASSWORD: comanda123
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+      table-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    networks:
+      - comanda-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8084/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # API Gateway
+  # ─────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: comanda-gateway
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+    ports:
+      - "8080:8080"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    networks:
+      - comanda-net
+
+  # ─────────────────────────────────────────────
+  # Frontend (Nginx)
+  # ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8080
+        VITE_WS_URL: http://localhost:8085
+    container_name: comanda-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - comanda-net
