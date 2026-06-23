@@ -1,0 +1,40 @@
+package com.oiaaconta.auth.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "email_verificacoes")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class EmailVerificacao {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, length = 150)
+    private String email;
+
+    @Column(nullable = false, length = 6)
+    private String codigo;
+
+    @Column(nullable = false)
+    private LocalDateTime expiradoEm;
+
+    @Builder.Default
+    private boolean usado = false;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    public boolean isValido() {
+        return !usado && LocalDateTime.now().isBefore(expiradoEm);
+    }
+}

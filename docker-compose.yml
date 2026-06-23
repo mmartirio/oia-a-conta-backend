@@ -1,9 +1,10 @@
 networks:
-  comanda-net:
+  oia-net:
     driver: bridge
 
 volumes:
   postgres_data:
+  redis_data:
 
 services:
 
@@ -12,10 +13,10 @@ services:
   # ─────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    container_name: comanda-postgres
+    container_name: oia-postgres
     environment:
-      POSTGRES_USER: comanda
-      POSTGRES_PASSWORD: comanda123
+      POSTGRES_USER: oiaconta
+      POSTGRES_PASSWORD: oiaconta123
       POSTGRES_DB: db_auth
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -23,9 +24,25 @@ services:
     ports:
       - "5432:5432"
     networks:
-      - comanda-net
+      - oia-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U comanda -d db_auth"]
+      test: ["CMD-SHELL", "pg_isready -U oiaconta -d db_auth"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # Redis — cache e sessões
+  # ─────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: oia-redis
+    ports:
+      - "6380:6379"
+    networks:
+      - oia-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -37,16 +54,16 @@ services:
     build:
       context: ./backend/discovery-service
       dockerfile: Dockerfile
-    container_name: comanda-discovery
+    container_name: oia-discovery
     ports:
       - "8761:8761"
     networks:
-      - comanda-net
+      - oia-net
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8761/actuator/health"]
       interval: 15s
       timeout: 5s
-      retries: 5
+      retries: 8
 
   # ─────────────────────────────────────────────
   # Auth Service
@@ -55,14 +72,16 @@ services:
     build:
       context: ./backend/auth-service
       dockerfile: Dockerfile
-    container_name: comanda-auth
+    container_name: oia-auth
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_auth
-      SPRING_DATASOURCE_USERNAME: comanda
-      SPRING_DATASOURCE_PASSWORD: comanda123
+      SPRING_DATASOURCE_USERNAME: oiaconta
+      SPRING_DATASOURCE_PASSWORD: oiaconta123
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
-      JWT_SECRET: ${JWT_SECRET:-comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+      JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
       JWT_EXPIRATION: 86400000
+      GMAIL_USERNAME: ${GMAIL_USERNAME:-}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
     ports:
       - "8081:8081"
     depends_on:
@@ -71,12 +90,12 @@ services:
       discovery-service:
         condition: service_healthy
     networks:
-      - comanda-net
+      - oia-net
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/actuator/health"]
       interval: 15s
       timeout: 5s
-      retries: 5
+      retries: 8
 
   # ─────────────────────────────────────────────
   # Catalog Service
@@ -85,13 +104,13 @@ services:
     build:
       context: ./backend/catalog-service
       dockerfile: Dockerfile
-    container_name: comanda-catalog
+    container_name: oia-catalog
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_catalog
-      SPRING_DATASOURCE_USERNAME: comanda
-      SPRING_DATASOURCE_PASSWORD: comanda123
+      SPRING_DATASOURCE_USERNAME: oiaconta
+      SPRING_DATASOURCE_PASSWORD: oiaconta123
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
-      JWT_SECRET: ${JWT_SECRET:-comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+      JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
     ports:
       - "8082:8082"
     depends_on:
@@ -100,12 +119,12 @@ services:
       discovery-service:
         condition: service_healthy
     networks:
-      - comanda-net
+      - oia-net
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/actuator/health"]
       interval: 15s
       timeout: 5s
-      retries: 5
+      retries: 8
 
   # ─────────────────────────────────────────────
   # Table Service
@@ -114,13 +133,13 @@ services:
     build:
       context: ./backend/table-service
       dockerfile: Dockerfile
-    container_name: comanda-table
+    container_name: oia-table
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_table
-      SPRING_DATASOURCE_USERNAME: comanda
-      SPRING_DATASOURCE_PASSWORD: comanda123
+      SPRING_DATASOURCE_USERNAME: oiaconta
+      SPRING_DATASOURCE_PASSWORD: oiaconta123
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
-      JWT_SECRET: ${JWT_SECRET:-comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+      JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
     ports:
       - "8083:8083"
     depends_on:
@@ -129,12 +148,12 @@ services:
       discovery-service:
         condition: service_healthy
     networks:
-      - comanda-net
+      - oia-net
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/actuator/health"]
       interval: 15s
       timeout: 5s
-      retries: 5
+      retries: 8
 
   # ─────────────────────────────────────────────
   # Notification Service
@@ -143,22 +162,22 @@ services:
     build:
       context: ./backend/notification-service
       dockerfile: Dockerfile
-    container_name: comanda-notification
+    container_name: oia-notification
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
-      JWT_SECRET: ${JWT_SECRET:-comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+      JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
     ports:
       - "8085:8085"
     depends_on:
       discovery-service:
         condition: service_healthy
     networks:
-      - comanda-net
+      - oia-net
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8085/actuator/health"]
       interval: 15s
       timeout: 5s
-      retries: 5
+      retries: 8
 
   # ─────────────────────────────────────────────
   # Order Service
@@ -167,13 +186,13 @@ services:
     build:
       context: ./backend/order-service
       dockerfile: Dockerfile
-    container_name: comanda-order
+    container_name: oia-order
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_order
-      SPRING_DATASOURCE_USERNAME: comanda
-      SPRING_DATASOURCE_PASSWORD: comanda123
+      SPRING_DATASOURCE_USERNAME: oiaconta
+      SPRING_DATASOURCE_PASSWORD: oiaconta123
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
-      JWT_SECRET: ${JWT_SECRET:-comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+      JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
     ports:
       - "8084:8084"
     depends_on:
@@ -186,12 +205,119 @@ services:
       notification-service:
         condition: service_healthy
     networks:
-      - comanda-net
+      - oia-net
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8084/actuator/health"]
       interval: 15s
       timeout: 5s
-      retries: 5
+      retries: 8
+
+  # ─────────────────────────────────────────────
+  # WhatsApp Service
+  # ─────────────────────────────────────────────
+  whatsapp-service:
+    build:
+      context: ./backend/whatsapp-service
+      dockerfile: Dockerfile
+    container_name: oia-whatsapp
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_whatsapp
+      SPRING_DATASOURCE_USERNAME: oiaconta
+      SPRING_DATASOURCE_PASSWORD: oiaconta123
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
+      EVOLUTION_API_URL: http://evolution-api:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-oia_evolution_key_2024}
+      EVOLUTION_INSTANCE_NAME: ${EVOLUTION_INSTANCE_NAME:-oiaaconta}
+      EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_WEBHOOK_SECRET:-}
+    ports:
+      - "8086:8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - oia-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8086/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+  # ─────────────────────────────────────────────
+  # Billing Service
+  # ─────────────────────────────────────────────
+  billing-service:
+    build:
+      context: ./backend/billing-service
+      dockerfile: Dockerfile
+    container_name: oia-billing
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_billing
+      SPRING_DATASOURCE_USERNAME: oiaconta
+      SPRING_DATASOURCE_PASSWORD: oiaconta123
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
+      AUTH_SERVICE_URL: http://auth-service:8081
+    ports:
+      - "8088:8088"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    networks:
+      - oia-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8088/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+  # ─────────────────────────────────────────────
+  # Evolution API (WhatsApp Gateway)
+  # ─────────────────────────────────────────────
+  evolution-api:
+    image: atendai/evolution-api:v2.2.3
+    container_name: oia-evolution
+    environment:
+      SERVER_PORT: 8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-oia_evolution_key_2024}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://oiaconta:oiaconta123@postgres:5432/db_evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: oia-evolution
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      DATABASE_SAVE_DATA_LABELS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://oia-redis:6379/6
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_REDIS_SAVE_INSTANCES: "false"
+      CACHE_LOCAL_ENABLED: "false"
+      QRCODE_LIMIT: "30"
+      QRCODE_EXPIRESIN: "45"
+      CONFIG_SESSION_PHONE_CLIENT: "Evolution API"
+      CONFIG_SESSION_PHONE_NAME: "Chrome"
+    ports:
+      - "8087:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - oia-net
+    restart: unless-stopped
 
   # ─────────────────────────────────────────────
   # API Gateway
@@ -200,10 +326,11 @@ services:
     build:
       context: ./backend/api-gateway
       dockerfile: Dockerfile
-    container_name: comanda-gateway
+    container_name: oia-gateway
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
-      JWT_SECRET: ${JWT_SECRET:-comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+      JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://localhost:80,http://localhost:3000}
     ports:
       - "8090:8080"
     depends_on:
@@ -212,7 +339,12 @@ services:
       auth-service:
         condition: service_healthy
     networks:
-      - comanda-net
+      - oia-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
 
   # ─────────────────────────────────────────────
   # Frontend (Nginx)
@@ -222,12 +354,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://localhost:8080
-        VITE_WS_URL: http://localhost:8085
-    container_name: comanda-frontend
+        VITE_API_URL: http://localhost:8090
+        VITE_WS_URL: http://localhost:8090
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+    container_name: oia-frontend
     ports:
       - "80:80"
     depends_on:
       - api-gateway
     networks:
-      - comanda-net
+      - oia-net

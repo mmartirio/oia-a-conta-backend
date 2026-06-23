@@ -16,6 +16,11 @@ spring:
           predicates:
             - Path=/api/auth/**, /api/restaurantes/**, /api/usuarios/**
 
+        - id: catalog-publico
+          uri: lb://catalog-service
+          predicates:
+            - Path=/api/catalog/publico/**
+
         - id: catalog-service
           uri: lb://catalog-service
           predicates:
@@ -26,15 +31,33 @@ spring:
           predicates:
             - Path=/api/mesas/**
 
+        - id: billing-financeiro
+          uri: lb://billing-service
+          predicates:
+            - Path=/api/financeiro/billing/**
+
+        - id: billing-service
+          uri: lb://billing-service
+          predicates:
+            - Path=/api/planos/**, /api/contratos/**, /api/tickets/**
+
         - id: order-service
           uri: lb://order-service
           predicates:
-            - Path=/api/comandas/**, /api/pedidos/**
+            - Path=/api/comandas/**, /api/pedidos/**, /api/entregas/**, /api/configuracoes/**, /api/financeiro/**
+
+        - id: whatsapp-service
+          uri: lb://whatsapp-service
+          predicates:
+            - Path=/api/whatsapp/**, /webhook/**
 
         - id: notification-ws
           uri: lb:ws://notification-service
           predicates:
             - Path=/ws/**
+
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
 
       globalcors:
         cors-configurations:

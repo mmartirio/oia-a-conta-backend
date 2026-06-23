@@ -1,0 +1,47 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: whatsapp-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/db_whatsapp}
+    username: ${SPRING_DATASOURCE_USERNAME:oiaconta}
+    password: ${SPRING_DATASOURCE_PASSWORD:oiaconta123}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+jwt:
+  secret: ${JWT_SECRET:oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
+
+evolution:
+  api:
+    url: ${EVOLUTION_API_URL:http://localhost:8087}
+    key: ${EVOLUTION_API_KEY:oia_evolution_key_2024}
+    instance: ${EVOLUTION_INSTANCE_NAME:oiaaconta}
+  webhook:
+    url: ${EVOLUTION_WEBHOOK_URL:http://localhost:8090/webhook/evolution}
+    secret: ${EVOLUTION_WEBHOOK_SECRET:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
