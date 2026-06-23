@@ -16,15 +16,13 @@ public class EntregaRequest {
 
     private String clienteTelefone;
 
-    @NotBlank(message = "Rua obrigatória")
+    @NotBlank(message = "Endereço obrigatório")
     private String enderecoRua;
 
-    @NotBlank(message = "Número obrigatório")
     private String enderecoNumero;
 
     private String enderecoBairro;
 
-    @NotBlank(message = "Cidade obrigatória")
     private String enderecoCidade;
 
     private String enderecoComplemento;
