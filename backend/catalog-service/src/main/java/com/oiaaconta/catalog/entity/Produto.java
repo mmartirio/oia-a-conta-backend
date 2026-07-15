@@ -32,6 +32,10 @@ public class Produto {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal preco;
 
+    // Foto ilustrativa do produto: data URI completa (ex: "data:image/jpeg;base64,...") ou null.
+    @Column(name = "imagem_base64", columnDefinition = "TEXT")
+    private String imagemBase64;
+
     @Builder.Default
     private boolean ativo = true;
 }

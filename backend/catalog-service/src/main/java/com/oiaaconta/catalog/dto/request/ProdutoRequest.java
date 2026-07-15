@@ -20,4 +20,8 @@ public class ProdutoRequest {
 
     @NotNull(message = "Categoria obrigatória")
     private Long categoriaId;
+
+    // Foto ilustrativa: data URI completa (ex: "data:image/png;base64,...").
+    // null = não alterar (update) / sem foto (create); "" explícito = remover a foto atual.
+    private String imagemBase64;
 }

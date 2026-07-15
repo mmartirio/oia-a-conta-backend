@@ -15,5 +15,6 @@ public class ProdutoResponse {
     private String nome;
     private String descricao;
     private BigDecimal preco;
+    private String imagemBase64;
     private boolean ativo;
 }

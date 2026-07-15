@@ -7,6 +7,7 @@ import com.oiaaconta.catalog.exception.BusinessException;
 import com.oiaaconta.catalog.exception.ResourceNotFoundException;
 import com.oiaaconta.catalog.repository.CategoriaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -23,6 +24,7 @@ public class CategoriaService {
     }
 
     @SuppressWarnings("null")
+    @CacheEvict(value = "cardapio-publico", key = "#restauranteId")
     public CategoriaResponse criar(Long restauranteId, CategoriaRequest request) {
         if (categoriaRepository.existsByRestauranteIdAndNome(restauranteId, request.getNome())) {
             throw new BusinessException("Categoria '" + request.getNome() + "' já existe");
@@ -35,6 +37,7 @@ public class CategoriaService {
         return toResponse(categoria);
     }
 
+    @CacheEvict(value = "cardapio-publico", key = "#restauranteId")
     public CategoriaResponse atualizar(Long restauranteId, Long id, CategoriaRequest request) {
         Categoria categoria = categoriaRepository.findByIdAndRestauranteId(id, restauranteId)
             .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada"));
@@ -42,6 +45,7 @@ public class CategoriaService {
         return toResponse(categoriaRepository.save(categoria));
     }
 
+    @CacheEvict(value = "cardapio-publico", key = "#restauranteId")
     public void desativar(Long restauranteId, Long id) {
         Categoria categoria = categoriaRepository.findByIdAndRestauranteId(id, restauranteId)
             .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada"));
