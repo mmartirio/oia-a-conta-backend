@@ -20,9 +20,8 @@ services:
       POSTGRES_DB: db_auth
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     ports:
-      - "5432:5432"
+      - "5433:5432"
     networks:
       - oia-net
     healthcheck:
@@ -55,6 +54,8 @@ services:
       context: ./backend/discovery-service
       dockerfile: Dockerfile
     container_name: oia-discovery
+    environment:
+      TZ: America/Sao_Paulo
     ports:
       - "8761:8761"
     networks:
@@ -74,6 +75,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-auth
     environment:
+      TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_auth
       SPRING_DATASOURCE_USERNAME: oiaconta
       SPRING_DATASOURCE_PASSWORD: oiaconta123
@@ -106,9 +108,12 @@ services:
       dockerfile: Dockerfile
     container_name: oia-catalog
     environment:
+      TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_catalog
       SPRING_DATASOURCE_USERNAME: oiaconta
       SPRING_DATASOURCE_PASSWORD: oiaconta123
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
     ports:
@@ -117,6 +122,8 @@ services:
       postgres:
         condition: service_healthy
       discovery-service:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - oia-net
@@ -135,6 +142,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-table
     environment:
+      TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_table
       SPRING_DATASOURCE_USERNAME: oiaconta
       SPRING_DATASOURCE_PASSWORD: oiaconta123
@@ -164,6 +172,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-notification
     environment:
+      TZ: America/Sao_Paulo
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
     ports:
@@ -188,6 +197,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-order
     environment:
+      TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_order
       SPRING_DATASOURCE_USERNAME: oiaconta
       SPRING_DATASOURCE_PASSWORD: oiaconta123
@@ -221,6 +231,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-whatsapp
     environment:
+      TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_whatsapp
       SPRING_DATASOURCE_USERNAME: oiaconta
       SPRING_DATASOURCE_PASSWORD: oiaconta123
@@ -229,7 +240,9 @@ services:
       EVOLUTION_API_URL: http://evolution-api:8080
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-oia_evolution_key_2024}
       EVOLUTION_INSTANCE_NAME: ${EVOLUTION_INSTANCE_NAME:-oiaaconta}
+      EVOLUTION_WEBHOOK_URL: ${EVOLUTION_WEBHOOK_URL:-http://whatsapp-service:8086/webhook/evolution}
       EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_WEBHOOK_SECRET:-}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost}
     ports:
       - "8086:8086"
     depends_on:
@@ -254,6 +267,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-billing
     environment:
+      TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_billing
       SPRING_DATASOURCE_USERNAME: oiaconta
       SPRING_DATASOURCE_PASSWORD: oiaconta123
@@ -283,9 +297,12 @@ services:
   # Evolution API (WhatsApp Gateway)
   # ─────────────────────────────────────────────
   evolution-api:
-    image: atendai/evolution-api:latest
+    build:
+      context: ./evolution-patch
+      dockerfile: Dockerfile
     container_name: oia-evolution
     environment:
+      TZ: America/Sao_Paulo
       SERVER_PORT: 8080
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-oia_evolution_key_2024}
       DATABASE_ENABLED: "true"
@@ -329,6 +346,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-gateway
     environment:
+      TZ: America/Sao_Paulo
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://localhost:80,http://localhost:3000}
