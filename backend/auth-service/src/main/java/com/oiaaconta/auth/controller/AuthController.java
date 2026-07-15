@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -77,6 +78,7 @@ public class AuthController {
     }
 
     @GetMapping("/me")
+    @Transactional(readOnly = true)
     public ResponseEntity<UsuarioResponse> me(@AuthenticationPrincipal UserDetails userDetails) {
         Usuario usuario = usuarioRepository.findByEmail(userDetails.getUsername())
             .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
@@ -88,6 +90,9 @@ public class AuthController {
             .ativo(usuario.isAtivo())
             .restauranteId(usuario.getRestaurante() != null ? usuario.getRestaurante().getId() : null)
             .createdAt(usuario.getCreatedAt())
+            .grupoId(usuario.getGrupo() != null ? usuario.getGrupo().getId() : null)
+            .grupoNome(usuario.getGrupo() != null ? usuario.getGrupo().getNome() : null)
+            .permissoes(usuario.getGrupo() != null ? usuario.getGrupo().getPermissoes() : null)
             .build());
     }
 }

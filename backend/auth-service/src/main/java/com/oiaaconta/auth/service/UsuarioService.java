@@ -2,11 +2,13 @@ package com.oiaaconta.auth.service;
 
 import com.oiaaconta.auth.dto.request.UsuarioRequest;
 import com.oiaaconta.auth.dto.response.UsuarioResponse;
+import com.oiaaconta.auth.entity.Grupo;
 import com.oiaaconta.auth.entity.Restaurante;
 import com.oiaaconta.auth.entity.Usuario;
 import com.oiaaconta.auth.enums.Role;
 import com.oiaaconta.auth.exception.BusinessException;
 import com.oiaaconta.auth.exception.ResourceNotFoundException;
+import com.oiaaconta.auth.repository.GrupoRepository;
 import com.oiaaconta.auth.repository.RestauranteRepository;
 import com.oiaaconta.auth.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final RestauranteRepository restauranteRepository;
+    private final GrupoRepository grupoRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
 
@@ -69,6 +72,7 @@ public class UsuarioService {
 
         Usuario usuario = usuarioRepository.save(Usuario.builder()
             .restaurante(restaurante)
+            .grupo(buscarGrupo(restauranteId, request.getGrupoId()))
             .nome(request.getNome())
             .email(request.getEmail())
             .senha(passwordEncoder.encode(
@@ -92,8 +96,15 @@ public class UsuarioService {
         if (request.getRole() != Role.SUPER_ADMIN) {
             usuario.setRole(request.getRole());
         }
+        usuario.setGrupo(buscarGrupo(restauranteId, request.getGrupoId()));
 
         return toResponse(usuarioRepository.save(usuario));
+    }
+
+    private Grupo buscarGrupo(Long restauranteId, Long grupoId) {
+        if (grupoId == null) return null;
+        return grupoRepository.findByIdAndRestauranteId(grupoId, restauranteId)
+            .orElseThrow(() -> new ResourceNotFoundException("Grupo não encontrado"));
     }
 
     public void desativar(@NonNull Long restauranteId, @NonNull Long id) {
@@ -113,6 +124,8 @@ public class UsuarioService {
             .ativo(u.isAtivo())
             .restauranteId(u.getRestaurante() != null ? u.getRestaurante().getId() : null)
             .createdAt(u.getCreatedAt())
+            .grupoId(u.getGrupo() != null ? u.getGrupo().getId() : null)
+            .grupoNome(u.getGrupo() != null ? u.getGrupo().getNome() : null)
             .build();
     }
 

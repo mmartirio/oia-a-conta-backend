@@ -25,6 +25,15 @@ public class JwtUtil {
 
     public String extractRole(String token) { return (String) extractClaims(token).get("role"); }
     public String extractEmail(String token) { return extractClaims(token).getSubject(); }
+
+    @SuppressWarnings("unchecked")
+    public java.util.Set<String> extractPermissoes(String token) {
+        Object val = extractClaims(token).get("permissoes");
+        if (val instanceof java.util.Collection<?> col) {
+            return col.stream().map(String::valueOf).collect(java.util.stream.Collectors.toSet());
+        }
+        return java.util.Set.of();
+    }
     public boolean isValid(String token) {
         try { extractClaims(token); return true; } catch (Exception e) { return false; }
     }

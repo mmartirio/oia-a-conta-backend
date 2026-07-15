@@ -16,7 +16,10 @@ import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -32,6 +35,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         "/api/planos",
         "/api/catalog/publico",
         "/api/whatsapp/publico",
+        "/api/configuracoes/pausas/status",
         "/ws",
         "/webhook",
         "/cardapio"
@@ -65,11 +69,37 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                 .getPayload();
 
             String nome = claims.get("nome") != null ? String.valueOf(claims.get("nome")) : "";
+
+            // Camada adicional ao role — se o usuário tem um grupo, as
+            // permissões dele (a) definem quais roles ele ganha (repassado
+            // via X-User-Role, usado pelo billing-service) e (b) gateiam
+            // diretamente aqui as rotas isoláveis por prefixo (ver
+            // RegraPermissao — Cozinha/Comanda/Garçom/Delivery/Entregador/
+            // Caixa não são isoláveis, ficam só com o grant de role).
+            Object permissoesClaim = claims.get("permissoes");
+            Set<String> permissoes = permissoesClaim instanceof Collection<?> col
+                ? col.stream().map(String::valueOf).collect(Collectors.toSet())
+                : Set.of();
+
+            String roleHeader = !permissoes.isEmpty()
+                ? String.join(",", PermissaoRoles.derivar(permissoes))
+                : String.valueOf(claims.get("role"));
+
+            if (!permissoes.isEmpty()) {
+                String metodo = exchange.getRequest().getMethod().name();
+                String permissaoRequerida = RegraPermissao.permissaoRequerida(path, metodo);
+                if (permissaoRequerida != null && !permissoes.contains(permissaoRequerida)) {
+                    log.warn("Acesso negado por permissão de grupo: {} {} exige {}", metodo, path, permissaoRequerida);
+                    exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+                    return exchange.getResponse().setComplete();
+                }
+            }
+
             ServerWebExchange mutated = exchange.mutate()
                 .request(r -> r.header("X-User-Id", String.valueOf(claims.get("userId")))
                     .header("X-User-Nome", nome)
                     .header("X-Restaurante-Id", String.valueOf(claims.get("restauranteId")))
-                    .header("X-User-Role", String.valueOf(claims.get("role"))))
+                    .header("X-User-Role", roleHeader))
                 .build();
 
             return chain.filter(mutated);

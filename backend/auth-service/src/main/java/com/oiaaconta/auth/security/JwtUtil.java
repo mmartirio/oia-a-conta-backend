@@ -25,12 +25,22 @@ public class JwtUtil {
     }
 
     public String generateToken(Usuario usuario) {
-        return Jwts.builder()
+        var builder = Jwts.builder()
             .subject(usuario.getEmail())
             .claim("userId", usuario.getId())
             .claim("restauranteId", usuario.getRestaurante() != null ? usuario.getRestaurante().getId() : null)
             .claim("role", usuario.getRole().name())
-            .claim("nome", usuario.getNome())
+            .claim("nome", usuario.getNome());
+
+        // Camada adicional ao role — se o usuário tem um grupo, as permissões
+        // dele viajam no token e passam a definir as authorities em cada
+        // serviço (ver JwtAuthFilter), em vez do role sozinho.
+        if (usuario.getGrupo() != null) {
+            builder.claim("grupoId", usuario.getGrupo().getId());
+            builder.claim("permissoes", usuario.getGrupo().getPermissoes());
+        }
+
+        return builder
             .issuedAt(new Date())
             .expiration(new Date(System.currentTimeMillis() + expiration))
             .signWith(getKey())

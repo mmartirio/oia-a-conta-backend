@@ -15,6 +15,7 @@ import com.oiaaconta.auth.repository.RegistroPendenteRepository;
 import com.oiaaconta.auth.repository.RestauranteRepository;
 import com.oiaaconta.auth.repository.UsuarioRepository;
 import com.oiaaconta.auth.security.JwtUtil;
+import com.oiaaconta.auth.util.SlugUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -29,11 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.security.SecureRandom;
-import java.text.Normalizer;
 import java.time.LocalDateTime;
-import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -49,6 +47,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final EmailService emailService;
     private final RestTemplate restTemplate;
+    private final GrupoService grupoService;
 
     @Value("${evolution.api.url:http://oia-evolution:8080}")
     private String evolutionUrl;
@@ -60,6 +59,7 @@ public class AuthService {
 
     // ─── Login ───────────────────────────────────────────────────────────────
 
+    @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
         authenticationManager.authenticate(
             new UsernamePasswordAuthenticationToken(request.getEmail(), request.getSenha())
@@ -198,6 +198,7 @@ public class AuthService {
         emailService.enviarBoasVindas(request.getEmail(), request.getNomeAdmin(), restaurante.getNome());
         criarInstanciaWhatsapp(restaurante);
         criarContratoBilling(restaurante.getId(), request.getPlanoId());
+        grupoService.criarGruposPadrao(restaurante.getId());
         return buildAuthResponse(admin);
     }
 
@@ -205,11 +206,21 @@ public class AuthService {
 
     public java.util.Optional<java.util.Map<String, Object>> buscarRestaurantePorSlug(String slug) {
         return restauranteRepository.findBySlug(slug)
-            .map(r -> java.util.Map.<String, Object>of(
-                "id", r.getId(),
-                "nome", r.getNome(),
-                "slug", r.getSlug()
-            ));
+            .map(r -> {
+                java.util.Map<String, Object> map = new java.util.HashMap<>();
+                map.put("id", r.getId());
+                map.put("nome", r.getNome());
+                map.put("slug", r.getSlug());
+                map.put("telefone", r.getTelefone() != null ? r.getTelefone() : "");
+                map.put("logoUrl", r.getLogoBase64());
+                map.put("corPrimaria", r.getCorPrimaria());
+                map.put("corSecundaria", r.getCorSecundaria());
+                map.put("corAccent", r.getCorAccent());
+                map.put("corTexto", r.getCorTexto());
+                map.put("backgroundUrl", r.getBackgroundBase64());
+                map.put("backgroundOpacidade", r.getBackgroundOpacidade());
+                return map;
+            });
     }
 
     // ─── Google ──────────────────────────────────────────────────────────────
@@ -246,6 +257,7 @@ public class AuthService {
                 );
                 emailService.enviarBoasVindas(googleEmail, usuario.getNome(), restaurante.getNome());
                 criarInstanciaWhatsapp(restaurante);
+                grupoService.criarGruposPadrao(restaurante.getId());
                 return buildAuthResponse(usuario);
             });
     }
@@ -283,6 +295,7 @@ public class AuthService {
         emailService.enviarBoasVindas(pendente.getEmail(), pendente.getNomeAdmin(), restaurante.getNome());
         criarInstanciaWhatsapp(restaurante);
         criarContratoBilling(restaurante.getId(), pendente.getPlanoId());
+        grupoService.criarGruposPadrao(restaurante.getId());
         return buildAuthResponse(admin);
     }
 
@@ -347,19 +360,13 @@ public class AuthService {
                 .role(usuario.getRole().name())
                 .restauranteId(usuario.getRestaurante() != null ? usuario.getRestaurante().getId() : null)
                 .ativo(usuario.isAtivo())
+                .grupoId(usuario.getGrupo() != null ? usuario.getGrupo().getId() : null)
+                .permissoes(usuario.getGrupo() != null ? usuario.getGrupo().getPermissoes() : null)
                 .build())
             .build();
     }
 
     private String generateSlug(String nome) {
-        String normalized = Normalizer.normalize(nome, Normalizer.Form.NFD);
-        Pattern pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
-        return pattern.matcher(normalized)
-            .replaceAll("")
-            .toLowerCase(Locale.ROOT)
-            .replaceAll("[^a-z0-9\\s-]", "")
-            .replaceAll("[\\s]+", "-")
-            .replaceAll("-+", "-")
-            .trim();
+        return SlugUtil.normalize(nome);
     }
 }

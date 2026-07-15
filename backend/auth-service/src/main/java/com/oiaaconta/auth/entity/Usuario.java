@@ -23,6 +23,10 @@ public class Usuario {
     @JoinColumn(name = "restaurante_id")
     private Restaurante restaurante;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "grupo_id")
+    private Grupo grupo;
+
     @Column(nullable = false, length = 100)
     private String nome;
 

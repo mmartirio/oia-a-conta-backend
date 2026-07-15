@@ -20,4 +20,8 @@ public class UsuarioRequest {
 
     @NotNull(message = "Role obrigatória")
     private Role role;
+
+    // Camada adicional ao role — se informado, as permissões do grupo
+    // substituem o role pra fins de autorização (ver JwtAuthFilter).
+    private Long grupoId;
 }

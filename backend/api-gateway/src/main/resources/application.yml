@@ -14,7 +14,7 @@ spring:
         - id: auth-service
           uri: lb://auth-service
           predicates:
-            - Path=/api/auth/**, /api/restaurantes/**, /api/usuarios/**
+            - Path=/api/auth/**, /api/restaurantes/**, /api/usuarios/**, /api/grupos/**
 
         - id: catalog-publico
           uri: lb://catalog-service
@@ -44,7 +44,7 @@ spring:
         - id: order-service
           uri: lb://order-service
           predicates:
-            - Path=/api/comandas/**, /api/pedidos/**, /api/entregas/**, /api/configuracoes/**, /api/financeiro/**
+            - Path=/api/comandas/**, /api/pedidos/**, /api/entregas/**, /api/configuracoes/**, /api/financeiro/**, /api/pdv/**, /api/despesas/**, /api/caixa/**
 
         - id: whatsapp-service
           uri: lb://whatsapp-service

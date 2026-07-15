@@ -59,9 +59,15 @@ public class SecurityConfig {
     public OncePerRequestFilter jwtFilter() {
         return new OncePerRequestFilter() {
             @Override
-            protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
+            @SuppressWarnings("null")
+            protected void doFilterInternal(@org.springframework.lang.NonNull HttpServletRequest req,
+                                            @org.springframework.lang.NonNull HttpServletResponse res,
+                                            @org.springframework.lang.NonNull FilterChain chain)
                     throws ServletException, IOException {
-                // Headers injetados pelo gateway
+                // Headers injetados pelo gateway — X-User-Role pode vir com
+                // vários roles separados por vírgula quando o usuário tem um
+                // Grupo (ver JwtAuthFilter do api-gateway, que já resolve as
+                // permissões do grupo em roles antes de repassar pra cá).
                 String role = req.getHeader("X-User-Role");
                 String userId = req.getHeader("X-User-Id");
                 String nome = req.getHeader("X-User-Nome");
@@ -69,9 +75,11 @@ public class SecurityConfig {
 
                 if (role != null && userId != null) {
                     String principal = nome != null ? nome : userId;
-                    var auth = new UsernamePasswordAuthenticationToken(
-                        principal, null,
-                        List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+                    List<SimpleGrantedAuthority> authorities = java.util.Arrays.stream(role.split(","))
+                        .map(String::trim).filter(r -> !r.isEmpty())
+                        .map(r -> new SimpleGrantedAuthority("ROLE_" + r))
+                        .toList();
+                    var auth = new UsernamePasswordAuthenticationToken(principal, null, authorities);
                     auth.setDetails(restauranteId);
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 } else {
@@ -81,10 +89,18 @@ public class SecurityConfig {
                             SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
                             Claims claims = Jwts.parser().verifyWith(key).build()
                                 .parseSignedClaims(authHeader.substring(7)).getPayload();
-                            String claimRole = String.valueOf(claims.get("role"));
+                            Object permissoesClaim = claims.get("permissoes");
+                            List<SimpleGrantedAuthority> authorities;
+                            if (permissoesClaim instanceof java.util.Collection<?> col && !col.isEmpty()) {
+                                java.util.Set<String> permissoes = col.stream()
+                                    .map(String::valueOf).collect(java.util.stream.Collectors.toSet());
+                                authorities = com.oiaaconta.billing.security.PermissaoRoles.derivar(permissoes).stream()
+                                    .map(r -> new SimpleGrantedAuthority("ROLE_" + r)).toList();
+                            } else {
+                                authorities = List.of(new SimpleGrantedAuthority("ROLE_" + claims.get("role")));
+                            }
                             var authToken = new UsernamePasswordAuthenticationToken(
-                                claims.getSubject(), null,
-                                List.of(new SimpleGrantedAuthority("ROLE_" + claimRole)));
+                                claims.getSubject(), null, authorities);
                             SecurityContextHolder.getContext().setAuthentication(authToken);
                         } catch (Exception e) {
                             log.warn("JWT inválido: {}", e.getMessage());

@@ -13,4 +13,6 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     List<Usuario> findByRestauranteIdAndRoleAndAtivoTrue(Long restauranteId, Role role);
     List<Usuario> findByRoleAndAtivoTrue(Role role);
     boolean existsByEmail(String email);
+    long countByGrupoId(Long grupoId);
+    List<Usuario> findByGrupoId(Long grupoId);
 }
