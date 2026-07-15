@@ -32,6 +32,7 @@ public class MensagemTemplateService {
         put("PEDIDO_ENTREGUE",               "notificacao");
         put("PEDIDO_PIX",                    "notificacao");
         put("PEDIDO_CANCELADO",              "notificacao");
+        put("PEDIDO_REJEITADO",              "notificacao");
     }};
 
     private static final Map<String, String> LABELS = new LinkedHashMap<>() {{
@@ -50,6 +51,7 @@ public class MensagemTemplateService {
         put("PEDIDO_ENTREGUE",               "Pedido Entregue");
         put("PEDIDO_PIX",                    "Pagamento via PIX");
         put("PEDIDO_CANCELADO",              "Pedido Cancelado");
+        put("PEDIDO_REJEITADO",              "Pedido Recusado pelo Restaurante");
     }};
 
     private static final Map<String, String> DEFAULTS = new LinkedHashMap<>() {{
@@ -77,6 +79,7 @@ public class MensagemTemplateService {
         put("PEDIDO_ENTREGUE",  "✅ Pedido entregue! Obrigado pela preferência. 😊");
         put("PEDIDO_PIX",       "✅ Pedido entregue! Para finalizar, realize o pagamento via PIX.\n\n🔑 *Chave PIX:* {PIX_CHAVE}\n💰 *Valor:* R$ {VALOR}");
         put("PEDIDO_CANCELADO", "❌ Seu pedido foi cancelado. Entre em contato conosco para mais informações.");
+        put("PEDIDO_REJEITADO", "❌ Não conseguimos aceitar seu pedido no momento.\n\n*Motivo:* {MOTIVO}\n\nPor favor, entre em contato conosco ou tente novamente mais tarde.");
     }};
 
     private static final Map<String, String> VARIAVEL_HINTS = new LinkedHashMap<>() {{
@@ -84,6 +87,7 @@ public class MensagemTemplateService {
         put("CHATBOT_SAUDACAO_APOS_NOME","Variável disponível: {NOME}");
         put("CHATBOT_PEDIDO_ENVIADO",    "Variável disponível: {PEDIDO_ID}");
         put("PEDIDO_PIX",                "Variáveis disponíveis: {PIX_CHAVE}, {VALOR}");
+        put("PEDIDO_REJEITADO",          "Variável disponível: {MOTIVO}");
     }};
 
     private static final Map<String, Integer> ORDENS_PADRAO = new LinkedHashMap<>() {{
@@ -102,8 +106,10 @@ public class MensagemTemplateService {
         put("PEDIDO_ENTREGUE",           40);
         put("PEDIDO_PIX",                50);
         put("PEDIDO_CANCELADO",          60);
+        put("PEDIDO_REJEITADO",          70);
     }};
 
+    @SuppressWarnings("null")
     public String resolverTexto(Long restauranteId, String tipo, Map<String, String> vars) {
         var dbEntry = repository.findByRestauranteIdAndChave(restauranteId, tipo);
         // Mensagem desativada → retorna string vazia para o ChatbotService ignorar
@@ -121,6 +127,7 @@ public class MensagemTemplateService {
         return texto;
     }
 
+    @SuppressWarnings("null")
     public List<MensagemTemplateDto> listar(Long restauranteId) {
         List<MensagemTemplate> dbEntries = repository.findByRestauranteId(restauranteId);
         Map<String, MensagemTemplate> byChave = dbEntries.stream()

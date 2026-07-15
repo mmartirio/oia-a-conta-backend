@@ -9,6 +9,9 @@ import java.util.List;
 public class PedidoPublicoRequest {
     private String clienteNome;
     private String telefone;
+    private String endereco;
+    private String metodoPagamento;
+    private String observacao;
     private List<ItemDto> itens;
 
     @Data

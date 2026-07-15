@@ -18,6 +18,9 @@ public interface AuthClient {
     @GetMapping("/internal/restaurantes/{id}/whatsapp-instance")
     Map<String, String> getWhatsappInstance(@PathVariable("id") Long restauranteId);
 
+    @GetMapping("/internal/restaurantes/{id}/slug")
+    Map<String, String> getSlug(@PathVariable("id") Long restauranteId);
+
     @PutMapping("/internal/restaurantes/{id}/whatsapp-instance")
     void salvarInstanciaWhatsapp(@PathVariable("id") Long restauranteId, @RequestBody Map<String, String> body);
 

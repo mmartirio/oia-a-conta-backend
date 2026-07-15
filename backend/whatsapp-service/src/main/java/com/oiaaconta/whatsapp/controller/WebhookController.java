@@ -52,12 +52,14 @@ public class WebhookController {
 
             String telefone = data.getKey().getRemoteJid();
             if (telefone == null) return ResponseEntity.ok().build();
-            // @lid é identificador interno do protocolo multi-device — não é endereçável
-            if (telefone.endsWith("@lid") || telefone.endsWith("@g.us")) {
-                log.info("JID ignorado ({}): {}", telefone.contains("@lid") ? "lid/multi-device" : "grupo", telefone);
+            if (telefone.endsWith("@g.us")) {
+                log.info("JID ignorado (grupo): {}", telefone);
                 return ResponseEntity.ok().build();
             }
-            telefone = telefone.replace("@s.whatsapp.net", "");
+            // @lid: novo formato multi-device — mantém o JID completo como identificador
+            if (!telefone.endsWith("@lid")) {
+                telefone = telefone.replace("@s.whatsapp.net", "");
+            }
 
             String texto = data.getMessage() != null ? data.getMessage().getText() : null;
             if (texto == null || texto.isBlank()) return ResponseEntity.ok().build();

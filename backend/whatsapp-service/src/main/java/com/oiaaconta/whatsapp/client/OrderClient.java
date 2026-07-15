@@ -13,7 +13,7 @@ import java.util.List;
 @FeignClient(name = "order-service")
 public interface OrderClient {
 
-    @PostMapping("/api/entregas")
+    @PostMapping("/internal/entregas")
     EntregaResponse criarEntrega(
         @RequestHeader("X-Restaurante-Id") Long restauranteId,
         @RequestBody EntregaRequest request

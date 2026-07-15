@@ -49,6 +49,62 @@ public class EvolutionApiClient {
         }
     }
 
+    public void enviarBotaoResposta(String telefone, String titulo, String descricao, String textoBotao, String id) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("apikey", apiKey);
+
+            Map<String, Object> botao = Map.of(
+                "type", "reply",
+                "displayText", textoBotao,
+                "id", id
+            );
+
+            Map<String, Object> body = new java.util.LinkedHashMap<>();
+            body.put("number", telefone);
+            body.put("title", titulo);
+            body.put("description", descricao);
+            body.put("footer", "");
+            body.put("buttons", java.util.List.of(botao));
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+            restTemplate.postForEntity(
+                apiUrl + "/message/sendButtons/" + instanceName,
+                entity, Object.class);
+        } catch (Exception e) {
+            log.error("Erro ao enviar botao resposta para {}: {}", telefone, e.getMessage());
+        }
+    }
+
+    public void enviarBotaoLink(String telefone, String titulo, String descricao, String textoBotao, String url) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("apikey", apiKey);
+
+            Map<String, Object> botao = Map.of(
+                "type", "url",
+                "displayText", textoBotao,
+                "url", url
+            );
+
+            Map<String, Object> body = new java.util.LinkedHashMap<>();
+            body.put("number", telefone);
+            body.put("title", titulo);
+            body.put("description", descricao);
+            body.put("footer", "");
+            body.put("buttons", java.util.List.of(botao));
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+            restTemplate.postForEntity(
+                apiUrl + "/message/sendButtons/" + instanceName,
+                entity, Object.class);
+        } catch (Exception e) {
+            log.error("Erro ao enviar botão WhatsApp para {}: {}", telefone, e.getMessage());
+        }
+    }
+
     @Data
     public static class WebhookPayload {
         private String event;
@@ -76,15 +132,25 @@ public class EvolutionApiClient {
             public static class MessagePayload {
                 private String conversation;
                 private ExtendedTextPayload extendedTextMessage;
+                private ButtonsResponsePayload buttonsResponseMessage;
+                private ButtonsResponsePayload templateButtonReplyMessage;
 
                 @Data
                 public static class ExtendedTextPayload {
                     private String text;
                 }
 
+                @Data
+                public static class ButtonsResponsePayload {
+                    private String selectedButtonId;
+                    private String selectedDisplayText;
+                }
+
                 public String getText() {
                     if (conversation != null) return conversation;
                     if (extendedTextMessage != null) return extendedTextMessage.getText();
+                    if (buttonsResponseMessage != null) return buttonsResponseMessage.getSelectedButtonId();
+                    if (templateButtonReplyMessage != null) return templateButtonReplyMessage.getSelectedButtonId();
                     return null;
                 }
             }

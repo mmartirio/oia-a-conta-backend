@@ -128,6 +128,15 @@ public class WhatsappAdminService {
         }
     }
 
+    public void enviarMensagemTexto(Long restauranteId, String telefone, String texto) {
+        String instancia = resolverInstancia(restauranteId);
+        Map<String, Object> body = Map.of("number", telefone, "text", texto);
+        restTemplate.postForEntity(
+            apiUrl + "/message/sendText/" + instancia,
+            new HttpEntity<>(body, headers()),
+            Void.class);
+    }
+
     public void desconectar(Long restauranteId) {
         String instancia = resolverInstancia(restauranteId);
         try {

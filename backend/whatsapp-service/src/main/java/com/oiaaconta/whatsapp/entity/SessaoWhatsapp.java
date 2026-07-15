@@ -34,6 +34,12 @@ public class SessaoWhatsapp {
     @Column(name = "cliente_nome", length = 100)
     private String clienteNome;
 
+    // Só preenchido para contatos "@lid": número real informado pelo próprio
+    // cliente no primeiro contato, já que a API não expõe esse dado para
+    // esse tipo de contato. "telefone" continua sendo o JID usado pra envio.
+    @Column(name = "numero_real", length = 20)
+    private String numeroReal;
+
     @Column(name = "endereco_rua", length = 200)
     private String enderecoRua;
 
@@ -51,12 +57,6 @@ public class SessaoWhatsapp {
 
     @Column(name = "metodo_pagamento", length = 30)
     private String metodoPagamento;
-
-    @Column(name = "categoria_selecionada_id")
-    private Long categoriaSelecionadaId;
-
-    @Column(name = "produto_selecionado_id")
-    private Long produtoSelecionadoId;
 
     @Column(length = 500)
     private String observacao;
