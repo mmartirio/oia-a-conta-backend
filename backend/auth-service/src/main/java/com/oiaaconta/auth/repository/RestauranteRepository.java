@@ -8,6 +8,7 @@ import java.util.Optional;
 public interface RestauranteRepository extends JpaRepository<Restaurante, Long> {
     Optional<Restaurante> findBySlug(String slug);
     boolean existsBySlug(String slug);
+    boolean existsBySlugAndIdNot(String slug, Long id);
     boolean existsByNomeIgnoreCase(String nome);
     Optional<Restaurante> findByWhatsappInstanceName(String whatsappInstanceName);
 }

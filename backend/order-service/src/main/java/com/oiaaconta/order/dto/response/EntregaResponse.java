@@ -30,12 +30,18 @@ public class EntregaResponse {
     private Integer parcelas;
 
     private String observacao;
+    private String motivoRejeicao;
     private BigDecimal total;
     private List<ItemEntregaResponse> itens;
 
     private Long pedidoCozinhaId;
     private Boolean origemWhatsapp;
+    private Boolean origemPdv;
     private Boolean pagamentoConfirmadoCaixa;
     private LocalDateTime criadoEm;
     private LocalDateTime entregueEm;
+
+    private Double latitude;
+    private Double longitude;
+    private LocalDateTime localizacaoAtualizadaEm;
 }

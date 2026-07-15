@@ -1,5 +1,7 @@
 package com.oiaaconta.notification.controller;
 
+import com.oiaaconta.notification.dto.NotificacaoLocalizacaoEntrega;
+import com.oiaaconta.notification.dto.NotificacaoMensagemWhatsapp;
 import com.oiaaconta.notification.dto.NotificacaoMessage;
 import com.oiaaconta.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,24 @@ public class NotificationController {
     @PostMapping("/pedido-entregue")
     public ResponseEntity<Void> pedidoEntregue(@RequestBody NotificacaoMessage msg) {
         notificationService.notificarPedidoEntregue(msg);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/nova-entrega")
+    public ResponseEntity<Void> novaEntrega(@RequestBody NotificacaoMessage msg) {
+        notificationService.notificarNovaEntregaAguardando(msg);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/mensagem-whatsapp")
+    public ResponseEntity<Void> mensagemWhatsapp(@RequestBody NotificacaoMensagemWhatsapp msg) {
+        notificationService.notificarMensagemWhatsapp(msg);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/localizacao-entrega")
+    public ResponseEntity<Void> localizacaoEntrega(@RequestBody NotificacaoLocalizacaoEntrega msg) {
+        notificationService.notificarLocalizacaoEntrega(msg);
         return ResponseEntity.ok().build();
     }
 }

@@ -1,6 +1,9 @@
 package com.oiaaconta.order.service;
 
+import com.oiaaconta.order.client.NotificationClient;
 import com.oiaaconta.order.client.WhatsappClient;
+import com.oiaaconta.order.dto.NotificacaoLocalizacaoEntrega;
+import com.oiaaconta.order.dto.NotificacaoMessage;
 import com.oiaaconta.order.dto.request.EntregaRequest;
 import com.oiaaconta.order.dto.response.EntregaResponse;
 import com.oiaaconta.order.dto.response.ItemEntregaResponse;
@@ -13,6 +16,8 @@ import com.oiaaconta.order.exception.ResourceNotFoundException;
 import com.oiaaconta.order.repository.EntregaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,9 +34,14 @@ public class EntregaService {
     private final DeliveryOrchestrationService orchestrationService;
     private final WhatsappClient whatsappClient;
     private final ConfiguracaoService configuracaoService;
+    private final NotificationClient notificationClient;
 
     @Transactional
     public EntregaResponse criar(Long restauranteId, EntregaRequest request) {
+        if (request.isOrigemPdv() && request.getMetodoPagamento() == MetodoPagamento.PIX) {
+            throw new BusinessException("Delivery criado pelo PDV não aceita PIX — o entregador recebe em dinheiro ou cartão e repassa ao caixa na volta.");
+        }
+
         Entrega entrega = Entrega.builder()
             .restauranteId(restauranteId)
             .clienteNome(request.getClienteNome())
@@ -45,7 +55,15 @@ public class EntregaService {
             .parcelas(request.getParcelas())
             .observacao(request.getObservacao())
             .origemWhatsapp(request.isOrigemWhatsapp())
+            .origemPdv(request.isOrigemPdv())
             .build();
+
+        // Pedido lançado por um funcionário (PDV/garçom) já é uma decisão da
+        // casa — pula o gate de aceitar/rejeitar, que existe só para pedidos
+        // que o próprio cliente fez sozinho (WhatsApp/cardápio).
+        if (!request.isOrigemWhatsapp()) {
+            entrega.setStatus(StatusEntrega.CONFIRMADA);
+        }
 
         List<ItemEntrega> itens = request.getItens().stream()
             .map(item -> ItemEntrega.builder()
@@ -59,29 +77,58 @@ public class EntregaService {
             .toList();
         entrega.setItens(itens);
 
-        return toResponse(entregaRepository.save(entrega));
+        Entrega saved = entregaRepository.save(entrega);
+
+        if (request.isOrigemWhatsapp()) {
+            try {
+                notificationClient.novaEntregaAguardando(NotificacaoMessage.builder()
+                    .tipo("NOVA_ENTREGA_AGUARDANDO")
+                    .pedidoId(saved.getId())
+                    .restauranteId(restauranteId)
+                    .mensagem("Novo pedido de " + saved.getClienteNome())
+                    .build());
+            } catch (Exception e) {
+                log.warn("Falha ao notificar nova entrega aguardando #{}: {}", saved.getId(), e.getMessage());
+            }
+        } else {
+            try {
+                Long pedidoId = orchestrationService.criarPedidoCozinha(saved);
+                saved.setPedidoCozinhaId(pedidoId);
+                saved = entregaRepository.save(saved);
+            } catch (Exception e) {
+                log.warn("Falha ao criar pedido na cozinha para entrega #{}: {}", saved.getId(), e.getMessage());
+            }
+        }
+
+        return toResponse(saved);
     }
 
-    public List<EntregaResponse> listar(Long restauranteId) {
-        return entregaRepository.findByRestauranteIdOrderByCreatedAtDesc(restauranteId)
-            .stream().map(this::toResponse).toList();
+    public Page<EntregaResponse> listar(Long restauranteId, Pageable pageable) {
+        return entregaRepository.findByRestauranteIdOrderByCreatedAtDesc(restauranteId, pageable)
+            .map(this::toResponse);
     }
 
-    public List<EntregaResponse> listarAguardando(Long restauranteId) {
+    public Page<EntregaResponse> listarAguardando(Long restauranteId, Pageable pageable) {
         return entregaRepository.findByRestauranteIdAndStatusOrderByCreatedAtDesc(
-            restauranteId, StatusEntrega.AGUARDANDO)
-            .stream().map(this::toResponse).toList();
+            restauranteId, StatusEntrega.AGUARDANDO, pageable)
+            .map(this::toResponse);
     }
 
+    public Page<EntregaResponse> listarConfirmadas(Long restauranteId, Pageable pageable) {
+        return entregaRepository.findByRestauranteIdAndStatusOrderByCreatedAtDesc(
+            restauranteId, StatusEntrega.CONFIRMADA, pageable)
+            .map(this::toResponse);
+    }
+
+    // Cozinha/admin decide se aceita o pedido do cliente (WhatsApp/cardápio).
+    // Só a partir daqui a cozinha é notificada e o cliente recebe a confirmação.
     @Transactional
-    public EntregaResponse aceitar(Long restauranteId, Long id, Long entregadorId, String entregadorNome) {
+    public EntregaResponse confirmar(Long restauranteId, Long id) {
         Entrega entrega = find(restauranteId, id);
         if (entrega.getStatus() != StatusEntrega.AGUARDANDO) {
-            throw new BusinessException("Entrega não está aguardando");
+            throw new BusinessException("Pedido não está aguardando confirmação");
         }
-        entrega.setStatus(StatusEntrega.ACEITA);
-        entrega.setEntregadorId(entregadorId);
-        entrega.setEntregadorNome(entregadorNome);
+        entrega.setStatus(StatusEntrega.CONFIRMADA);
         Entrega saved = entregaRepository.save(entrega);
 
         if (Boolean.TRUE.equals(entrega.getOrigemWhatsapp())) {
@@ -95,6 +142,41 @@ public class EntregaService {
             notificarWhatsapp(restauranteId, saved.getId(), "PEDIDO_ACEITO");
         }
 
+        return toResponse(saved);
+    }
+
+    // Cozinha/admin recusa o pedido do cliente — exige motivo, que é repassado ao cliente.
+    @Transactional
+    public EntregaResponse rejeitar(Long restauranteId, Long id, String motivo) {
+        if (motivo == null || motivo.isBlank()) {
+            throw new BusinessException("Informe o motivo da recusa");
+        }
+        Entrega entrega = find(restauranteId, id);
+        if (entrega.getStatus() != StatusEntrega.AGUARDANDO) {
+            throw new BusinessException("Pedido não está aguardando confirmação");
+        }
+        entrega.setStatus(StatusEntrega.CANCELADA);
+        entrega.setMotivoRejeicao(motivo.trim());
+        Entrega saved = entregaRepository.save(entrega);
+
+        if (Boolean.TRUE.equals(entrega.getOrigemWhatsapp())) {
+            notificarWhatsapp(restauranteId, saved.getId(), "PEDIDO_REJEITADO",
+                java.util.Map.of("MOTIVO", motivo.trim()));
+        }
+
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public EntregaResponse aceitar(Long restauranteId, Long id, Long entregadorId, String entregadorNome) {
+        Entrega entrega = find(restauranteId, id);
+        if (entrega.getStatus() != StatusEntrega.CONFIRMADA) {
+            throw new BusinessException("Entrega ainda não foi confirmada pela cozinha");
+        }
+        entrega.setStatus(StatusEntrega.ACEITA);
+        entrega.setEntregadorId(entregadorId);
+        entrega.setEntregadorNome(entregadorNome);
+        Entrega saved = entregaRepository.save(entrega);
         return toResponse(saved);
     }
 
@@ -127,6 +209,7 @@ public class EntregaService {
     }
 
     @Transactional
+    @SuppressWarnings("null")
     public EntregaResponse entregar(Long restauranteId, Long id) {
         Entrega entrega = find(restauranteId, id);
         if (entrega.getStatus() != StatusEntrega.SAIU_PARA_ENTREGA) {
@@ -183,11 +266,50 @@ public class EntregaService {
         return toResponse(entregaRepository.save(entrega));
     }
 
-    public List<EntregaResponse> listarPendentesPagamento(Long restauranteId) {
+    public List<EntregaResponse> listarEmRota(Long restauranteId) {
+        return entregaRepository.findByRestauranteIdAndStatus(restauranteId, StatusEntrega.SAIU_PARA_ENTREGA)
+            .stream()
+            .map(this::toResponse)
+            .toList();
+    }
+
+    // Atualiza a posição GPS do entregador enquanto a entrega está a caminho —
+    // usada pelo mapa de rastreamento ao vivo no dashboard do admin. Só o
+    // entregador responsável pela entrega (ou admin) pode atualizar, e só
+    // enquanto ela estiver de fato "a caminho".
+    @Transactional
+    public void atualizarLocalizacao(Long restauranteId, Long id, Long usuarioId, boolean isAdmin, Double latitude, Double longitude) {
+        Entrega entrega = find(restauranteId, id);
+        if (!isAdmin && !entrega.getEntregadorId().equals(usuarioId)) {
+            throw new BusinessException("Você não é o entregador responsável por esta entrega");
+        }
+        if (entrega.getStatus() != StatusEntrega.SAIU_PARA_ENTREGA) {
+            throw new BusinessException("Entrega não está a caminho");
+        }
+        entrega.setLatitude(latitude);
+        entrega.setLongitude(longitude);
+        entrega.setLocalizacaoAtualizadaEm(LocalDateTime.now());
+        entregaRepository.save(entrega);
+
+        try {
+            notificationClient.localizacaoEntrega(NotificacaoLocalizacaoEntrega.builder()
+                .restauranteId(restauranteId)
+                .entregaId(id)
+                .entregadorNome(entrega.getEntregadorNome())
+                .latitude(latitude)
+                .longitude(longitude)
+                .atualizadoEm(entrega.getLocalizacaoAtualizadaEm().toString())
+                .build());
+        } catch (Exception e) {
+            log.warn("Falha ao notificar localização da entrega #{}: {}", id, e.getMessage());
+        }
+    }
+
+    public Page<EntregaResponse> listarPendentesPagamento(Long restauranteId, Pageable pageable) {
         return entregaRepository
             .findByRestauranteIdAndStatusAndPagamentoConfirmadoCaixaOrderByCreatedAtDesc(
-                restauranteId, StatusEntrega.ENTREGUE, false)
-            .stream().map(this::toResponse).toList();
+                restauranteId, StatusEntrega.ENTREGUE, false, pageable)
+            .map(this::toResponse);
     }
 
     private void notificarWhatsapp(Long restauranteId, Long entregaId, String tipo) {
@@ -212,6 +334,7 @@ public class EntregaService {
             .orElseThrow(() -> new ResourceNotFoundException("Entrega não encontrada"));
     }
 
+    @SuppressWarnings("null")
     private EntregaResponse toResponse(Entrega e) {
         List<ItemEntregaResponse> itens = e.getItens().stream()
             .map(i -> ItemEntregaResponse.builder()
@@ -234,11 +357,14 @@ public class EntregaService {
             .entregadorId(e.getEntregadorId()).entregadorNome(e.getEntregadorNome())
             .status(e.getStatus().name())
             .metodoPagamento(e.getMetodoPagamento().name()).parcelas(e.getParcelas())
-            .observacao(e.getObservacao()).total(total).itens(itens)
+            .observacao(e.getObservacao()).motivoRejeicao(e.getMotivoRejeicao()).total(total).itens(itens)
             .pedidoCozinhaId(e.getPedidoCozinhaId())
             .origemWhatsapp(Boolean.TRUE.equals(e.getOrigemWhatsapp()))
+            .origemPdv(Boolean.TRUE.equals(e.getOrigemPdv()))
             .pagamentoConfirmadoCaixa(Boolean.TRUE.equals(e.getPagamentoConfirmadoCaixa()))
             .criadoEm(e.getCreatedAt()).entregueEm(e.getEntregueAt())
+            .latitude(e.getLatitude()).longitude(e.getLongitude())
+            .localizacaoAtualizadaEm(e.getLocalizacaoAtualizadaEm())
             .build();
     }
 }

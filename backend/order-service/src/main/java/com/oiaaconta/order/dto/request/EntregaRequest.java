@@ -37,6 +37,8 @@ public class EntregaRequest {
 
     private boolean origemWhatsapp;
 
+    private boolean origemPdv;
+
     @NotEmpty(message = "O pedido deve ter pelo menos um item")
     @Valid
     private List<ItemRequest> itens;

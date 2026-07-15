@@ -34,13 +34,13 @@ public class Entrega {
     @Column(name = "endereco_rua", nullable = false, length = 200)
     private String enderecoRua;
 
-    @Column(name = "endereco_numero", nullable = false, length = 20)
+    @Column(name = "endereco_numero", length = 20)
     private String enderecoNumero;
 
     @Column(name = "endereco_bairro", length = 100)
     private String enderecoBairro;
 
-    @Column(name = "endereco_cidade", nullable = false, length = 100)
+    @Column(name = "endereco_cidade", length = 100)
     private String enderecoCidade;
 
     @Column(name = "endereco_complemento", length = 100)
@@ -65,7 +65,10 @@ public class Entrega {
     @Column(length = 500)
     private String observacao;
 
-    @OneToMany(mappedBy = "entrega", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @Column(name = "motivo_rejeicao", length = 500)
+    private String motivoRejeicao;
+
+    @OneToMany(mappedBy = "entrega", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
     private List<ItemEntrega> itens = new ArrayList<>();
 
@@ -77,6 +80,10 @@ public class Entrega {
     private Boolean origemWhatsapp = false;
 
     @Builder.Default
+    @Column(name = "origem_pdv", nullable = false)
+    private Boolean origemPdv = false;
+
+    @Builder.Default
     @Column(name = "pagamento_confirmado_caixa", nullable = false)
     private Boolean pagamentoConfirmadoCaixa = false;
 
@@ -86,4 +93,10 @@ public class Entrega {
 
     @Column(name = "entregue_at")
     private LocalDateTime entregueAt;
+
+    private Double latitude;
+    private Double longitude;
+
+    @Column(name = "localizacao_atualizada_em")
+    private LocalDateTime localizacaoAtualizadaEm;
 }
