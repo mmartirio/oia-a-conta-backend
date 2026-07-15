@@ -12,6 +12,8 @@ public class ResumoFinanceiroResponse {
     private BigDecimal totalComandas;
     private BigDecimal totalEntregas;
     private BigDecimal totalGeral;
+    private BigDecimal totalDespesas;
+    private BigDecimal lucroLiquido;
     private Long qtdComandas;
     private Long qtdEntregas;
     private Map<String, BigDecimal> breakdownPorMetodo;

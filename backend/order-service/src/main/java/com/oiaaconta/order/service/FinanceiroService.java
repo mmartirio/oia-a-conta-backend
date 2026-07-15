@@ -1,12 +1,17 @@
 package com.oiaaconta.order.service;
 
 import com.oiaaconta.order.dto.response.ComissaoResponse;
+import com.oiaaconta.order.dto.response.ComparativoResponse;
+import com.oiaaconta.order.dto.response.EvolucaoDiariaResponse;
 import com.oiaaconta.order.dto.response.ResumoFinanceiroResponse;
 import com.oiaaconta.order.entity.Comanda;
+import com.oiaaconta.order.entity.Despesa;
 import com.oiaaconta.order.entity.Entrega;
 import com.oiaaconta.order.entity.Pedido;
 import com.oiaaconta.order.enums.StatusComanda;
+import com.oiaaconta.order.enums.StatusPedido;
 import com.oiaaconta.order.repository.ComandaRepository;
+import com.oiaaconta.order.repository.DespesaRepository;
 import com.oiaaconta.order.repository.EntregaRepository;
 import com.oiaaconta.order.repository.PedidoRepository;
 import com.oiaaconta.order.repository.RestauranteConfigRepository;
@@ -15,6 +20,8 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -27,9 +34,11 @@ public class FinanceiroService {
     private final EntregaRepository entregaRepository;
     private final PedidoRepository pedidoRepository;
     private final RestauranteConfigRepository configRepository;
+    private final DespesaRepository despesaRepository;
 
+    @SuppressWarnings("null")
     public ResumoFinanceiroResponse getResumo(Long restauranteId, LocalDateTime inicio, LocalDateTime fim) {
-        List<Comanda> comandas = comandaRepository.findByRestauranteIdAndStatusAndClosedAtBetween(
+        List<Comanda> comandas = comandaRepository.findWithPedidosEItensByRestauranteIdAndStatusAndClosedAtBetween(
             restauranteId, StatusComanda.FECHADA, inicio, fim);
 
         List<Entrega> entregas = entregaRepository
@@ -42,6 +51,12 @@ public class FinanceiroService {
         BigDecimal totalEntregas = entregas.stream()
             .map(this::calcularTotalEntrega)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalGeral = totalComandas.add(totalEntregas);
+
+        BigDecimal totalDespesas = despesaRepository.somarPorPeriodo(
+            restauranteId, inicio.toLocalDate(), fim.toLocalDate());
+        if (totalDespesas == null) totalDespesas = BigDecimal.ZERO;
 
         Map<String, BigDecimal> breakdown = new LinkedHashMap<>();
         for (Comanda c : comandas) {
@@ -56,13 +71,79 @@ public class FinanceiroService {
         return ResumoFinanceiroResponse.builder()
             .totalComandas(totalComandas)
             .totalEntregas(totalEntregas)
-            .totalGeral(totalComandas.add(totalEntregas))
+            .totalGeral(totalGeral)
+            .totalDespesas(totalDespesas)
+            .lucroLiquido(totalGeral.subtract(totalDespesas))
             .qtdComandas((long) comandas.size())
             .qtdEntregas((long) entregas.size())
             .breakdownPorMetodo(breakdown)
             .build();
     }
 
+    @SuppressWarnings("null")
+    public List<EvolucaoDiariaResponse> getEvolucao(Long restauranteId, LocalDateTime inicio, LocalDateTime fim) {
+        List<Comanda> comandas = comandaRepository.findWithPedidosEItensByRestauranteIdAndStatusAndClosedAtBetween(
+            restauranteId, StatusComanda.FECHADA, inicio, fim);
+        List<Entrega> entregas = entregaRepository
+            .findByRestauranteIdAndPagamentoConfirmadoCaixaTrueAndEntregueAtBetween(restauranteId, inicio, fim);
+        List<Despesa> despesas = despesaRepository.findByRestauranteIdAndDataBetweenOrderByDataDesc(
+            restauranteId, inicio.toLocalDate(), fim.toLocalDate());
+
+        Map<LocalDate, BigDecimal> comandasPorDia = comandas.stream()
+            .collect(Collectors.groupingBy(
+                c -> c.getClosedAt().toLocalDate(),
+                Collectors.reducing(BigDecimal.ZERO, this::calcularTotalComanda, BigDecimal::add)));
+
+        Map<LocalDate, BigDecimal> entregasPorDia = entregas.stream()
+            .collect(Collectors.groupingBy(
+                e -> e.getEntregueAt().toLocalDate(),
+                Collectors.reducing(BigDecimal.ZERO, this::calcularTotalEntrega, BigDecimal::add)));
+
+        Map<LocalDate, BigDecimal> despesasPorDia = despesas.stream()
+            .collect(Collectors.groupingBy(Despesa::getData,
+                Collectors.reducing(BigDecimal.ZERO, Despesa::getValor, BigDecimal::add)));
+
+        TreeSet<LocalDate> dias = new TreeSet<>();
+        dias.addAll(comandasPorDia.keySet());
+        dias.addAll(entregasPorDia.keySet());
+        dias.addAll(despesasPorDia.keySet());
+
+        return dias.stream()
+            .map(dia -> EvolucaoDiariaResponse.builder()
+                .data(dia)
+                .totalComandas(comandasPorDia.getOrDefault(dia, BigDecimal.ZERO))
+                .totalEntregas(entregasPorDia.getOrDefault(dia, BigDecimal.ZERO))
+                .totalDespesas(despesasPorDia.getOrDefault(dia, BigDecimal.ZERO))
+                .build())
+            .toList();
+    }
+
+    public ComparativoResponse getComparativo(Long restauranteId, LocalDateTime inicio, LocalDateTime fim) {
+        Duration duracao = Duration.between(inicio, fim);
+        LocalDateTime inicioAnterior = inicio.minus(duracao);
+        LocalDateTime fimAnterior = inicio;
+
+        ResumoFinanceiroResponse atual = getResumo(restauranteId, inicio, fim);
+        ResumoFinanceiroResponse anterior = getResumo(restauranteId, inicioAnterior, fimAnterior);
+
+        BigDecimal variacaoPercentual;
+        if (anterior.getTotalGeral() == null || anterior.getTotalGeral().compareTo(BigDecimal.ZERO) == 0) {
+            variacaoPercentual = null;
+        } else {
+            variacaoPercentual = atual.getTotalGeral().subtract(anterior.getTotalGeral())
+                .divide(anterior.getTotalGeral(), 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(2, RoundingMode.HALF_UP);
+        }
+
+        return ComparativoResponse.builder()
+            .atual(atual)
+            .anterior(anterior)
+            .variacaoPercentual(variacaoPercentual)
+            .build();
+    }
+
+    @SuppressWarnings("null")
     public List<ComissaoResponse> getComissoes(Long restauranteId, LocalDateTime inicio, LocalDateTime fim) {
         var config = configRepository.findByRestauranteId(restauranteId);
         BigDecimal pctGarcon = config.map(c -> c.getComissaoGarcon() != null ? c.getComissaoGarcon() : BigDecimal.ZERO)
@@ -75,7 +156,7 @@ public class FinanceiroService {
         List<ComissaoResponse> result = new ArrayList<>();
 
         // Garçons: soma das comandas fechadas por garçom
-        List<Comanda> comandas = comandaRepository.findByRestauranteIdAndStatusAndClosedAtBetween(
+        List<Comanda> comandas = comandaRepository.findWithPedidosEItensByRestauranteIdAndStatusAndClosedAtBetween(
             restauranteId, StatusComanda.FECHADA, inicio, fim);
 
         comandas.stream()
@@ -116,6 +197,7 @@ public class FinanceiroService {
             .findByRestauranteIdAndCozinheiroIdNotNullAndCreatedAtBetween(restauranteId, inicio, fim);
 
         pedidos.stream()
+            .filter(p -> p.getStatus() != StatusPedido.CANCELADO)
             .collect(Collectors.groupingBy(p -> p.getCozinheiroId() + "||" + p.getCozinheiroNome()))
             .forEach((key, lista) -> {
                 String[] parts = key.split("\\|\\|");
@@ -135,6 +217,7 @@ public class FinanceiroService {
         return result;
     }
 
+    @SuppressWarnings("null")
     private BigDecimal calcularTotalComanda(Comanda c) {
         return c.getPedidos().stream()
             .flatMap(p -> p.getItens().stream())
@@ -142,6 +225,7 @@ public class FinanceiroService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    @SuppressWarnings("null")
     private BigDecimal calcularTotalEntrega(Entrega e) {
         return e.getItens().stream()
             .map(i -> i.getPrecoUnitario().multiply(BigDecimal.valueOf(i.getQuantidade())))

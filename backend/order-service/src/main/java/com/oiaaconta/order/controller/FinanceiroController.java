@@ -1,6 +1,8 @@
 package com.oiaaconta.order.controller;
 
 import com.oiaaconta.order.dto.response.ComissaoResponse;
+import com.oiaaconta.order.dto.response.ComparativoResponse;
+import com.oiaaconta.order.dto.response.EvolucaoDiariaResponse;
 import com.oiaaconta.order.dto.response.ResumoFinanceiroResponse;
 import com.oiaaconta.order.service.FinanceiroService;
 import lombok.RequiredArgsConstructor;
@@ -35,5 +37,23 @@ public class FinanceiroController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dataInicio,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dataFim) {
         return ResponseEntity.ok(financeiroService.getComissoes(restauranteId, dataInicio, dataFim));
+    }
+
+    @GetMapping("/evolucao")
+    @PreAuthorize("hasAnyRole('ADMIN','CAIXA','SUPER_ADMIN')")
+    public ResponseEntity<List<EvolucaoDiariaResponse>> evolucao(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dataInicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dataFim) {
+        return ResponseEntity.ok(financeiroService.getEvolucao(restauranteId, dataInicio, dataFim));
+    }
+
+    @GetMapping("/comparativo")
+    @PreAuthorize("hasAnyRole('ADMIN','CAIXA','SUPER_ADMIN')")
+    public ResponseEntity<ComparativoResponse> comparativo(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dataInicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dataFim) {
+        return ResponseEntity.ok(financeiroService.getComparativo(restauranteId, dataInicio, dataFim));
     }
 }
