@@ -101,22 +101,27 @@ public class EmailService {
         enviar(destinatario, "Serviço suspenso — regularize seu pagamento", html);
     }
 
+    @SuppressWarnings("null")
     private void enviar(String destinatario, String assunto, String htmlContent) {
+        String destino = destinatario == null ? "" : destinatario.trim();
+        String assuntoFinal = assunto == null ? "" : assunto.trim();
+        String conteudoHtml = htmlContent == null ? "" : htmlContent;
+
         if (mailPassword == null || mailPassword.isBlank()) {
-            log.warn("GMAIL_APP_PASSWORD não configurada — e-mail para {} não enviado (assunto: {})", destinatario, assunto);
+            log.warn("GMAIL_APP_PASSWORD não configurada — e-mail para {} não enviado (assunto: {})", destino, assuntoFinal);
             return;
         }
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(from, fromName);
-            helper.setTo(destinatario);
-            helper.setSubject(assunto);
-            helper.setText(htmlContent, true);
+            helper.setTo(destino);
+            helper.setSubject(assuntoFinal);
+            helper.setText(conteudoHtml, true);
             mailSender.send(message);
-            log.info("E-mail enviado para {}", destinatario);
+            log.info("E-mail enviado para {}", destino);
         } catch (Exception e) {
-            log.error("Falha ao enviar e-mail para {}: {}", destinatario, e.getMessage());
+            log.error("Falha ao enviar e-mail para {}: {}", destino, e.getMessage());
         }
     }
 }
