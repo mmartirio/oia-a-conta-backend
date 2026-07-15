@@ -56,18 +56,18 @@ public class ComandaService {
 
     public ComandaResponse buscarComandaAtiva(Long restauranteId, Long mesaId) {
         return toResponse(
-            comandaRepository.findByMesaIdAndStatusAndRestauranteId(mesaId, StatusComanda.ABERTA, restauranteId)
+            comandaRepository.findWithPedidosEItensByMesaIdAndStatusAndRestauranteId(mesaId, StatusComanda.ABERTA, restauranteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Nenhuma comanda aberta para esta mesa")));
     }
 
     public ComandaResponse buscarPorId(Long restauranteId, Long id) {
         return toResponse(
-            comandaRepository.findByIdAndRestauranteId(id, restauranteId)
+            comandaRepository.findWithPedidosEItensByIdAndRestauranteId(id, restauranteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Comanda não encontrada")));
     }
 
     public List<ComandaResponse> listarAbertas(Long restauranteId) {
-        return comandaRepository.findByRestauranteIdAndStatus(restauranteId, StatusComanda.ABERTA)
+        return comandaRepository.findWithPedidosEItensByRestauranteIdAndStatus(restauranteId, StatusComanda.ABERTA)
             .stream().map(this::toResponse).toList();
     }
 
@@ -108,10 +108,11 @@ public class ComandaService {
     }
 
     public List<ComandaResponse> listarAguardandoPagamento(Long restauranteId) {
-        return comandaRepository.findByRestauranteIdAndStatus(restauranteId, StatusComanda.AGUARDANDO_PAGAMENTO)
+        return comandaRepository.findWithPedidosEItensByRestauranteIdAndStatus(restauranteId, StatusComanda.AGUARDANDO_PAGAMENTO)
             .stream().map(this::toResponse).toList();
     }
 
+    @SuppressWarnings("null")
     ComandaResponse toResponse(Comanda c) {
         List<PedidoResponse> pedidosResp = c.getPedidos().stream()
             .map(this::pedidoToResponse).toList();

@@ -1,5 +1,6 @@
 package com.oiaaconta.order.client;
 
+import com.oiaaconta.order.dto.NotificacaoLocalizacaoEntrega;
 import com.oiaaconta.order.dto.NotificacaoMessage;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
@@ -17,4 +18,10 @@ public interface NotificationClient {
 
     @PostMapping("/pedido-entregue")
     ResponseEntity<Void> pedidoEntregue(@RequestBody NotificacaoMessage msg);
+
+    @PostMapping("/nova-entrega")
+    ResponseEntity<Void> novaEntregaAguardando(@RequestBody NotificacaoMessage msg);
+
+    @PostMapping("/localizacao-entrega")
+    ResponseEntity<Void> localizacaoEntrega(@RequestBody NotificacaoLocalizacaoEntrega msg);
 }

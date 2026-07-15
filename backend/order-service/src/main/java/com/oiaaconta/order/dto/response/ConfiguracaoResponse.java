@@ -13,4 +13,10 @@ public class ConfiguracaoResponse {
     private BigDecimal comissaoGarcon;
     private BigDecimal comissaoEntregador;
     private BigDecimal comissaoCozinheiro;
+    private boolean fechadoManualmente;
+    private String motivoFechamentoManual;
+    private String alertaPedidoSom;
+    private BigDecimal taxaDebito;
+    private BigDecimal taxaCreditoVista;
+    private BigDecimal taxaCreditoParcelado;
 }

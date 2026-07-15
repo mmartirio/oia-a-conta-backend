@@ -10,4 +10,5 @@ public class ConfiguracaoRequest {
     private BigDecimal comissaoGarcon;
     private BigDecimal comissaoEntregador;
     private BigDecimal comissaoCozinheiro;
+    private String alertaPedidoSom;
 }

@@ -2,6 +2,7 @@ package com.oiaaconta.order.controller;
 
 import com.oiaaconta.order.dto.request.PedidoRequest;
 import com.oiaaconta.order.dto.response.PedidoResponse;
+import com.oiaaconta.order.dto.response.ResumoDiaResponse;
 import com.oiaaconta.order.service.PedidoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -57,5 +58,20 @@ public class PedidoController {
             @RequestHeader("X-Restaurante-Id") Long restauranteId,
             @PathVariable Long id) {
         return ResponseEntity.ok(pedidoService.marcarEntregue(restauranteId, id));
+    }
+
+    @PutMapping("/api/pedidos/{id}/cancelar")
+    @PreAuthorize("hasAnyRole('ADMIN','COZINHA','GARCON','SUPER_ADMIN')")
+    public ResponseEntity<PedidoResponse> cancelar(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(pedidoService.cancelar(restauranteId, id));
+    }
+
+    @GetMapping("/api/pedidos/resumo-dia")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<ResumoDiaResponse> resumoDia(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId) {
+        return ResponseEntity.ok(pedidoService.getResumoDia(restauranteId));
     }
 }

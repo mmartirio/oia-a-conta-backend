@@ -43,7 +43,7 @@ public class Pedido {
 
     private String observacao;
 
-    @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
     private List<ItemPedido> itens = new ArrayList<>();
 

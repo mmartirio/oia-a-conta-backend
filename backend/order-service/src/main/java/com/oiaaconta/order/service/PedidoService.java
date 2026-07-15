@@ -5,6 +5,7 @@ import com.oiaaconta.order.dto.NotificacaoMessage;
 import com.oiaaconta.order.dto.request.PedidoRequest;
 import com.oiaaconta.order.dto.response.ItemPedidoResponse;
 import com.oiaaconta.order.dto.response.PedidoResponse;
+import com.oiaaconta.order.dto.response.ResumoDiaResponse;
 import com.oiaaconta.order.entity.Comanda;
 import com.oiaaconta.order.entity.ItemPedido;
 import com.oiaaconta.order.entity.Pedido;
@@ -32,6 +33,7 @@ public class PedidoService {
     private final ComandaRepository comandaRepository;
     private final NotificationClient notificationClient;
     private final DeliveryOrchestrationService orchestrationService;
+    private final FinanceiroService financeiroService;
 
     @Transactional
     public PedidoResponse enviarParaCozinha(Long restauranteId, Long comandaId, PedidoRequest request) {
@@ -152,6 +154,47 @@ public class PedidoService {
         }
 
         return toResponse(saved);
+    }
+
+    @Transactional
+    public PedidoResponse cancelar(Long restauranteId, Long id) {
+        Pedido pedido = findPedido(restauranteId, id);
+        if (pedido.getStatus() != StatusPedido.ENVIADO && pedido.getStatus() != StatusPedido.PREPARANDO) {
+            throw new BusinessException("Pedido não pode mais ser cancelado");
+        }
+        pedido.setStatus(StatusPedido.CANCELADO);
+        return toResponse(pedidoRepository.save(pedido));
+    }
+
+    public ResumoDiaResponse getResumoDia(Long restauranteId) {
+        LocalDateTime inicio = LocalDateTime.now().toLocalDate().atStartOfDay();
+        LocalDateTime fim = LocalDateTime.now();
+
+        long total = pedidoRepository.countByRestauranteIdAndCreatedAtBetween(restauranteId, inicio, fim);
+        long emProducao = pedidoRepository.countByRestauranteIdAndStatusInAndCreatedAtBetween(
+            restauranteId, List.of(StatusPedido.ENVIADO, StatusPedido.PREPARANDO, StatusPedido.PRONTO), inicio, fim);
+        long cancelados = pedidoRepository.countByRestauranteIdAndStatusInAndCreatedAtBetween(
+            restauranteId, List.of(StatusPedido.CANCELADO), inicio, fim);
+        long entregues = pedidoRepository.countByRestauranteIdAndStatusInAndCreatedAtBetween(
+            restauranteId, List.of(StatusPedido.ENTREGUE), inicio, fim);
+
+        // Reaproveita o mesmo cálculo de receita confirmada do Financeiro
+        // (comandas fechadas + entregas com pagamento confirmado no caixa).
+        var resumoFinanceiro = financeiroService.getResumo(restauranteId, inicio, fim);
+        BigDecimal totalCaixa = resumoFinanceiro.getTotalGeral();
+        long qtdVendas = resumoFinanceiro.getQtdComandas() + resumoFinanceiro.getQtdEntregas();
+        BigDecimal ticketMedio = qtdVendas > 0
+            ? totalCaixa.divide(BigDecimal.valueOf(qtdVendas), 2, java.math.RoundingMode.HALF_UP)
+            : BigDecimal.ZERO;
+
+        return ResumoDiaResponse.builder()
+            .total(total)
+            .emProducao(emProducao)
+            .cancelados(cancelados)
+            .entregues(entregues)
+            .totalCaixa(totalCaixa)
+            .ticketMedio(ticketMedio)
+            .build();
     }
 
     private Pedido findPedido(Long restauranteId, Long id) {

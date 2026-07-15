@@ -24,6 +24,8 @@ public class SecurityConfig {
             .cors(c -> c.disable())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(a -> a.requestMatchers("/actuator/**").permitAll()
+                .requestMatchers("/api/configuracoes/pausas/status").permitAll()
+                .requestMatchers("/internal/**").permitAll()
                 .anyRequest().authenticated())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .build();
