@@ -2,6 +2,8 @@ package com.oiaaconta.billing.repository;
 
 import com.oiaaconta.billing.entity.Pagamento;
 import com.oiaaconta.billing.enums.StatusPagamento;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -11,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PagamentoRepository extends JpaRepository<Pagamento, Long> {
-    List<Pagamento> findByContratoIdOrderByCreatedAtDesc(Long contratoId);
+    Page<Pagamento> findByContratoIdOrderByCreatedAtDesc(Long contratoId, Pageable pageable);
 
     Optional<Pagamento> findByMpPaymentId(String mpPaymentId);
 

@@ -11,6 +11,8 @@ import com.oiaaconta.billing.repository.PagamentoRepository;
 import com.oiaaconta.billing.repository.PlanoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,14 +43,19 @@ public class BillingService {
     }
 
     @Transactional
+    @SuppressWarnings("null")
     public Plano criarPlano(Plano plano) {
         return planoRepository.save(plano);
     }
 
     @Transactional
+    @SuppressWarnings("null")
     public Plano atualizarPlano(Long id, Plano dados) {
         Plano plano = planoRepository.findById(id)
             .orElseThrow(() -> new NoSuchElementException("Plano não encontrado"));
+        if (dados == null) {
+            throw new IllegalArgumentException("Dados do plano são obrigatórios");
+        }
         plano.setNome(dados.getNome());
         plano.setDescricao(dados.getDescricao());
         plano.setPrecoMensal(dados.getPrecoMensal());
@@ -62,17 +69,24 @@ public class BillingService {
 
     // ─── Contratos ────────────────────────────────────────────────────────────
 
-    public List<Contrato> listarContratos() {
-        return contratoRepository.findAll();
+    public Page<Contrato> listarContratos(Pageable pageable) {
+        return contratoRepository.findAll(pageable);
     }
 
     public Contrato buscarContratoDoRestaurante(Long restauranteId) {
+        if (restauranteId == null) {
+            throw new IllegalArgumentException("restauranteId é obrigatório");
+        }
         return contratoRepository.findByRestauranteId(restauranteId)
             .orElseThrow(() -> new NoSuchElementException("Contrato não encontrado"));
     }
 
     @Transactional
+    @SuppressWarnings("null")
     public Contrato criarContrato(Long restauranteId, Long planoId) {
+        if (restauranteId == null || planoId == null) {
+            throw new IllegalArgumentException("restauranteId e planoId são obrigatórios");
+        }
         if (contratoRepository.findByRestauranteId(restauranteId).isPresent()) {
             throw new IllegalStateException("Restaurante já possui contrato");
         }
@@ -90,6 +104,7 @@ public class BillingService {
     }
 
     @Transactional
+    @SuppressWarnings("null")
     public Contrato atualizarStatusContrato(Long contratoId, StatusContrato novoStatus) {
         Contrato contrato = contratoRepository.findById(contratoId)
             .orElseThrow(() -> new NoSuchElementException("Contrato não encontrado"));
@@ -106,12 +121,16 @@ public class BillingService {
 
     // ─── Pagamentos ───────────────────────────────────────────────────────────
 
-    public List<Pagamento> listarPagamentosDoContrato(Long contratoId) {
-        return pagamentoRepository.findByContratoIdOrderByCreatedAtDesc(contratoId);
+    public Page<Pagamento> listarPagamentosDoContrato(Long contratoId, Pageable pageable) {
+        return pagamentoRepository.findByContratoIdOrderByCreatedAtDesc(contratoId, pageable);
     }
 
     @Transactional
+    @SuppressWarnings("null")
     public Pagamento registrarPagamentoManual(Long contratoId, BigDecimal valor, String observacao) {
+        if (contratoId == null || valor == null) {
+            throw new IllegalArgumentException("contratoId e valor são obrigatórios");
+        }
         Contrato contrato = contratoRepository.findById(contratoId)
             .orElseThrow(() -> new NoSuchElementException("Contrato não encontrado"));
         Pagamento pag = pagamentoRepository.save(Pagamento.builder()

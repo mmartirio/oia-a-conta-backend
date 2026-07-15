@@ -5,6 +5,8 @@ import com.oiaaconta.billing.entity.TicketSuporte;
 import com.oiaaconta.billing.enums.StatusTicket;
 import com.oiaaconta.billing.repository.TicketSuporteRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,21 +20,24 @@ public class TicketService {
 
     private final TicketSuporteRepository ticketRepository;
 
-    public List<TicketSuporte> listarTodos() {
-        return ticketRepository.findAllByOrderByCreatedAtDesc();
+    public Page<TicketSuporte> listarTodos(Pageable pageable) {
+        return ticketRepository.findAllByOrderByCreatedAtDesc(pageable);
     }
 
     public List<TicketSuporte> listarPorRestaurante(Long restauranteId) {
         return ticketRepository.findByRestauranteIdOrderByCreatedAtDesc(restauranteId);
     }
 
-    @SuppressWarnings("null")
     public TicketSuporte buscarPorId(Long id) {
+        if (id == null) {
+            throw new IllegalArgumentException("id é obrigatório");
+        }
         return ticketRepository.findById(id)
             .orElseThrow(() -> new NoSuchElementException("Ticket não encontrado"));
     }
 
     @Transactional
+    @SuppressWarnings("null")
     public TicketSuporte criar(TicketSuporte ticket) {
         return ticketRepository.save(ticket);
     }

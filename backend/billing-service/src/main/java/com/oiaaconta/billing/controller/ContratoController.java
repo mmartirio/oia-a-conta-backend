@@ -5,12 +5,14 @@ import com.oiaaconta.billing.entity.Pagamento;
 import com.oiaaconta.billing.enums.StatusContrato;
 import com.oiaaconta.billing.service.BillingService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -22,8 +24,8 @@ public class ContratoController {
 
     @GetMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<List<Contrato>> listar() {
-        return ResponseEntity.ok(billingService.listarContratos());
+    public ResponseEntity<Page<Contrato>> listar(@PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(billingService.listarContratos(pageable));
     }
 
     @GetMapping("/meu")
@@ -65,7 +67,7 @@ public class ContratoController {
 
     @GetMapping("/{id}/pagamentos")
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
-    public ResponseEntity<List<Pagamento>> pagamentos(@PathVariable Long id) {
-        return ResponseEntity.ok(billingService.listarPagamentosDoContrato(id));
+    public ResponseEntity<Page<Pagamento>> pagamentos(@PathVariable Long id, @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(billingService.listarPagamentosDoContrato(id, pageable));
     }
 }

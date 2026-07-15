@@ -6,6 +6,9 @@ import com.oiaaconta.billing.enums.PrioridadeTicket;
 import com.oiaaconta.billing.enums.StatusTicket;
 import com.oiaaconta.billing.service.TicketService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -22,8 +25,8 @@ public class TicketController {
 
     @GetMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<List<TicketSuporte>> listarTodos() {
-        return ResponseEntity.ok(ticketService.listarTodos());
+    public ResponseEntity<Page<TicketSuporte>> listarTodos(@PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(ticketService.listarTodos(pageable));
     }
 
     @GetMapping("/meus")
