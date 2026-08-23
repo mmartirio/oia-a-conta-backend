@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.0</version>
+        <version>3.3.13</version>
     </parent>
     <groupId>com.comandadigital</groupId>
     <artifactId>table-service</artifactId>
@@ -14,7 +14,7 @@
     <name>table-service</name>
     <properties>
         <java.version>21</java.version>
-        <spring-cloud.version>2023.0.2</spring-cloud.version>
+        <spring-cloud.version>2023.0.6</spring-cloud.version>
     </properties>
     <dependencies>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
