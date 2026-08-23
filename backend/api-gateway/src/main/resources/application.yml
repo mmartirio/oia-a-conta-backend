@@ -24,7 +24,17 @@ spring:
         - id: catalog-service
           uri: lb://catalog-service
           predicates:
-            - Path=/api/categorias/**, /api/produtos/**
+            - Path=/api/categorias/**, /api/produtos/**, /api/clientes/**, /api/grupos-clientes/**, /api/estoque/**, /api/combos/**, /api/cupons/**, /api/promocoes/**
+
+        # Precisa vir ANTES de table-service: POST/GET /api/mesas/{id}/comanda
+        # é implementado no order-service (abrir/buscar comanda da mesa), não
+        # no table-service — sem essa rota mais específica primeiro, o
+        # predicate genérico de table-service abaixo engolia a chamada e
+        # devolvia 403 (sem handler pro path, mas ainda autenticado).
+        - id: mesa-comanda
+          uri: lb://order-service
+          predicates:
+            - Path=/api/mesas/*/comanda
 
         - id: table-service
           uri: lb://table-service
@@ -39,7 +49,7 @@ spring:
         - id: billing-service
           uri: lb://billing-service
           predicates:
-            - Path=/api/planos/**, /api/contratos/**, /api/tickets/**
+            - Path=/api/planos/**, /api/contratos/**, /api/tickets/**, /api/auditoria/**
 
         - id: order-service
           uri: lb://order-service
@@ -50,6 +60,11 @@ spring:
           uri: lb://whatsapp-service
           predicates:
             - Path=/api/whatsapp/**, /webhook/**
+
+        - id: ifood-service
+          uri: lb://ifood-service
+          predicates:
+            - Path=/api/ifood/**
 
         - id: notification-ws
           uri: lb:ws://notification-service
@@ -62,11 +77,16 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOriginPatterns: "*"
+            # Lista real de origens permitidas (não "*") — combinado com
+            # allowCredentials:true, um coringa refletiria qualquer Origin de
+            # volta, anulando a proteção do CORS. Vem de ALLOWED_ORIGINS no
+            # .env/docker-compose.yml (separado por vírgula).
+            allowedOriginPatterns: ${ALLOWED_ORIGINS:http://localhost}
             allowedMethods:
               - GET
               - POST
               - PUT
+              - PATCH
               - DELETE
               - OPTIONS
             allowedHeaders: "*"
@@ -80,7 +100,7 @@ eureka:
     prefer-ip-address: true
 
 jwt:
-  secret: ${JWT_SECRET:comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+  secret: ${JWT_SECRET:oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
 
 management:
   endpoints:

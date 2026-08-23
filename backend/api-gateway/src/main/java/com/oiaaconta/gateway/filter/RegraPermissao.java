@@ -34,6 +34,9 @@ public final class RegraPermissao {
         new Regra("WHATSAPP_CONEXAO", "/api/whatsapp/admin/conectar", null),
         new Regra("WHATSAPP_CONEXAO", "/api/whatsapp/admin/desconectar", null),
         new Regra("WHATSAPP_CONEXAO", "/api/whatsapp/admin/chatbot-status", null),
+        new Regra("WHATSAPP_CONEXAO", "/api/whatsapp/admin/cardapio-imagem", null),
+
+        new Regra("IFOOD_CONEXAO", "/api/ifood/admin", null),
 
         new Regra("CONFIG_LOGO", "/api/auth/restaurante/logo", null),
         new Regra("CONFIG_CORES", "/api/auth/restaurante/cores", null),
@@ -49,23 +52,31 @@ public final class RegraPermissao {
         new Regra("CONFIG_COMISSOES", "/api/configuracoes/comissoes", null),
         new Regra("CONFIG_HORARIOS", "/api/configuracoes/horarios", null),
         new Regra("CONFIG_PAUSAS", "/api/configuracoes/pausas", null),
-        new Regra("CONFIG_TAXAS_MAQUININHA", "/api/configuracoes/taxas-maquininha", null),
+        new Regra("CONFIG_FRETE", "/api/configuracoes/frete", null),
 
         new Regra("FINANCEIRO", "/api/financeiro", null),
         new Regra("FINANCEIRO", "/api/despesas", null),
 
         new Regra("SUPORTE", "/api/tickets", null),
         new Regra("USUARIOS", "/api/usuarios", null),
+        // Prefixo mais específico (/api/grupos-clientes) precisa vir antes de
+        // /api/grupos (RBAC de equipe), senão o predicate genérico engoliria.
+        new Regra("CLIENTES", "/api/grupos-clientes", null),
         new Regra("USUARIOS", "/api/grupos", null),
+        new Regra("CLIENTES", "/api/clientes", null),
         // Sessão de caixa é um prefixo próprio, exclusivo do PDV — diferente
         // de /api/pedidos|comandas|entregas, dá pra isolar por permissão aqui.
         new Regra("CAIXA_PDV", "/api/caixa", null),
 
         // Leitura livre (usada por Garçom/Cozinha/PDV pra montar telas) —
-        // só escrita exige a permissão do item Cardápio/Mesas.
+        // só escrita exige a permissão do item Cardápio/Mesas/Estoque.
         new Regra("MESAS", "/api/mesas", ESCRITA),
         new Regra("CARDAPIO", "/api/produtos", ESCRITA),
-        new Regra("CARDAPIO", "/api/categorias", ESCRITA)
+        new Regra("CARDAPIO", "/api/categorias", ESCRITA),
+        new Regra("ESTOQUE", "/api/estoque", ESCRITA),
+        new Regra("MARKETING", "/api/combos", ESCRITA),
+        new Regra("MARKETING", "/api/cupons", ESCRITA),
+        new Regra("MARKETING", "/api/promocoes", ESCRITA)
     );
 
     // Retorna a permissão exigida pra essa rota, ou null se nenhuma regra bate
