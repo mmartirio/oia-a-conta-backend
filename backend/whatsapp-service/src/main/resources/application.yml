@@ -46,6 +46,11 @@ evolution:
 app:
   frontend-base-url: ${FRONTEND_BASE_URL:http://localhost}
 
+ollama:
+  api:
+    url: ${OLLAMA_API_URL:http://localhost:11434}
+  model: ${OLLAMA_MODEL:qwen2.5:1.5b-instruct}
+
 feign:
   client:
     config:

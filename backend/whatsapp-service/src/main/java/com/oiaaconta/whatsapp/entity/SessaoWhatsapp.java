@@ -72,6 +72,12 @@ public class SessaoWhatsapp {
     @Column(name = "ultima_interacao")
     private LocalDateTime ultimaInteracao;
 
+    // Evita reenviar o lembrete de 10 min a cada varredura do job — vira false
+    // de novo só quando a sessão é resetada (novo pedido do zero).
+    @Column(name = "lembrete_cardapio_enviado")
+    @Builder.Default
+    private boolean lembreteCardapioEnviado = false;
+
     @OneToMany(mappedBy = "sessao", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     @Builder.Default
     private List<ItemCarrinho> itens = new ArrayList<>();

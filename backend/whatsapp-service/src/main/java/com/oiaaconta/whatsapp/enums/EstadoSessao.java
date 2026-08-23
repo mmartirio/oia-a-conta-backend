@@ -16,6 +16,9 @@ public enum EstadoSessao {
     COLETANDO_ENDERECO,
     // aguardando o cliente finalizar o pedido pelo cardápio digital (link enviado)
     AGUARDANDO_PEDIDO_WEB,
+    // depois do lembrete de 10 min (imagem do cardápio numerado): aguardando o
+    // cliente responder com números/nomes de produtos direto no chat
+    COLETANDO_PEDIDO_CHAT,
     COLETANDO_PAGAMENTO,
     COLETANDO_OBSERVACAO,
     CONFIRMANDO_PEDIDO,

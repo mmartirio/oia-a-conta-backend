@@ -149,6 +149,24 @@ public class WhatsappAdminController {
         return ResponseEntity.ok(Map.of("ativo", ativo));
     }
 
+    // Imagem do cardápio numerado (desenhada pelo admin) enviada pelo lembrete
+    // de 10 min do chatbot — data URI base64, mesmo padrão de imagem de
+    // produto no catalog-service. body.imagemBase64 vazio/null remove a imagem.
+    @GetMapping("/cardapio-imagem")
+    public ResponseEntity<Map<String, String>> getCardapioImagem(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId) {
+        return ResponseEntity.ok(Map.of("imagemBase64",
+            java.util.Objects.requireNonNullElse(whatsappConfigService.getImagemCardapio(restauranteId), "")));
+    }
+
+    @PutMapping("/cardapio-imagem")
+    public ResponseEntity<Void> atualizarCardapioImagem(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @RequestBody Map<String, String> body) {
+        whatsappConfigService.atualizarImagemCardapio(restauranteId, body.get("imagemBase64"));
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/conversas")
     public ResponseEntity<List<ConversaResumoResponse>> conversas(
             @RequestHeader("X-Restaurante-Id") Long restauranteId) {

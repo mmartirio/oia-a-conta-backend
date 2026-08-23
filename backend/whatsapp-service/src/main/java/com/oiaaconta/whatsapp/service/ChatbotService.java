@@ -1,7 +1,9 @@
 package com.oiaaconta.whatsapp.service;
 
 import com.oiaaconta.whatsapp.client.AuthClient;
+import com.oiaaconta.whatsapp.client.CatalogClient;
 import com.oiaaconta.whatsapp.client.EvolutionApiClient;
+import com.oiaaconta.whatsapp.client.OllamaClient;
 import com.oiaaconta.whatsapp.client.OrderClient;
 import com.oiaaconta.whatsapp.entity.ItemCarrinho;
 import com.oiaaconta.whatsapp.entity.SessaoWhatsapp;
@@ -12,11 +14,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -30,11 +37,29 @@ public class ChatbotService {
     private final AuthClient authClient;
     private final MensagemWhatsappService mensagemWhatsappService;
     private final WhatsappConfigService whatsappConfigService;
+    private final CatalogClient catalogClient;
+    private final OllamaClient ollamaClient;
 
     @Value("${app.frontend-base-url:http://localhost}")
     private String frontendBaseUrl;
 
     private static final int MAX_ERROS = 3;
+
+    // Mensagem "só números/vírgulas/espaços" (ex: "2, 5, 5") — via rápida sem
+    // IA. Qualquer letra na mensagem cai no caminho com IA (Ollama).
+    private static final Pattern SOMENTE_NUMEROS_SEPARADOS = Pattern.compile("^[\\d\\s,;]+$");
+
+    // Trava por telefone+restaurante — evita a condição de corrida do
+    // find-then-create de SessaoWhatsapp: sem isso, duas mensagens quase
+    // simultâneas do mesmo número (cada uma num thread do pool @Async) podiam
+    // achar "nenhuma sessão ainda" ao mesmo tempo e criar duas linhas
+    // duplicadas (quebrando qualquer query que espere uma sessão única por
+    // telefone, ex: listagem de conversas). Processar mensagens do MESMO
+    // telefone em sequência também é o comportamento certo por si só — o
+    // estado da conversa depende da ordem em que as mensagens chegam.
+    // Números DIFERENTES continuam processando em paralelo normalmente (o
+    // lock só serializa quem compartilha a mesma chave).
+    private final ConcurrentHashMap<String, Object> locksPorTelefone = new ConcurrentHashMap<>();
 
     // Intencionalmente SEM @Transactional aqui: este método faz várias chamadas
     // HTTP bloqueantes (Feign para auth/order, RestTemplate para a Evolution
@@ -47,8 +72,15 @@ public class ChatbotService {
     // escrita (sessaoRepo.save(...)) permanecem, cada um cobrindo uma
     // transação curta e própria (Spring Data abre/fecha uma por chamada).
     @Async
-    @SuppressWarnings("null")
     public void processarMensagem(String telefone, String texto, Long restauranteId, String pushName) {
+        Object lock = locksPorTelefone.computeIfAbsent(telefone + '|' + restauranteId, k -> new Object());
+        synchronized (lock) {
+            processarMensagemSincronizado(telefone, texto, restauranteId, pushName);
+        }
+    }
+
+    @SuppressWarnings("null")
+    private void processarMensagemSincronizado(String telefone, String texto, Long restauranteId, String pushName) {
         if (texto == null || texto.isBlank()) return;
         String textoLimpo = texto.trim().toLowerCase();
 
@@ -109,7 +141,7 @@ public class ChatbotService {
                 case COLETANDO_NUMERO_LID -> processarNumeroLid(sessao, texto, pushName);
                 case COLETANDO_NOME -> processarNome(sessao, texto);
                 case COLETANDO_ENDERECO -> processarEndereco(sessao, texto);
-                case AGUARDANDO_PEDIDO_WEB -> reenviarLinkCardapio(sessao);
+                case AGUARDANDO_PEDIDO_WEB, COLETANDO_PEDIDO_CHAT -> processarPossivelPedido(sessao, texto, textoLimpo);
                 case COLETANDO_PAGAMENTO -> processarPagamento(sessao, textoLimpo);
                 case COLETANDO_OBSERVACAO -> processarObservacao(sessao, textoLimpo);
                 case CONFIRMANDO_PEDIDO -> processarConfirmacao(sessao, textoLimpo);
@@ -200,6 +232,149 @@ public class ChatbotService {
         enviarLinkCardapio(s);
     }
 
+    // Ponto de entrada do pedido "em texto livre" — tenta entender a mensagem
+    // como um pedido (números do cardápio, nome de produto, endereço e forma
+    // de pagamento, misturados ou não) e avança o fluxo pra o que ainda falta,
+    // reaproveitando os mesmos passos do fluxo legado (endereço → pagamento →
+    // resumo/confirmação). Se não conseguir entender nada, cai de volta pro
+    // link do cardápio (estado AGUARDANDO_PEDIDO_WEB) ou pede pra tentar de
+    // novo com os números do cardápio (estado COLETANDO_PEDIDO_CHAT).
+    private void processarPossivelPedido(SessaoWhatsapp s, String textoOriginal, String textoLimpo) {
+        List<CatalogClient.ProdutoNumeradoResponse> catalogo = buscarCatalogoNumerado(s.getRestauranteId());
+
+        boolean interpretou = false;
+
+        if (!catalogo.isEmpty() && SOMENTE_NUMEROS_SEPARADOS.matcher(textoLimpo).matches()) {
+            interpretou = tentarInterpretarNumeros(s, textoLimpo, catalogo);
+        } else if (!catalogo.isEmpty() && textoOriginal.trim().length() >= 8) {
+            // Mensagem com letras (nome de produto/endereço/pagamento
+            // misturados) — só vale a pena chamar a IA se tiver conteúdo
+            // (evita gastar uma chamada de inferência em "oi"/"ok").
+            interpretou = tentarInterpretarComIA(s, textoOriginal, catalogo);
+        }
+
+        if (!interpretou) {
+            if (s.getEstado() == EstadoSessao.COLETANDO_PEDIDO_CHAT) {
+                enviar(s.getTelefone(), "Não entendi. Responda com os números dos produtos que deseja, separados por vírgula (ex: 1, 3, 3):\n\n"
+                    + montarTextoCardapio(catalogo), s.getRestauranteId());
+            } else {
+                reenviarLinkCardapio(s);
+            }
+            return;
+        }
+
+        avancarAposColetarItens(s);
+    }
+
+    private List<CatalogClient.ProdutoNumeradoResponse> buscarCatalogoNumerado(Long restauranteId) {
+        try {
+            return catalogClient.listarProdutosNumerados(restauranteId);
+        } catch (Exception e) {
+            log.warn("Falha ao buscar cardápio numerado do restaurante {}: {}", restauranteId, e.getMessage());
+            return List.of();
+        }
+    }
+
+    private String montarTextoCardapio(List<CatalogClient.ProdutoNumeradoResponse> catalogo) {
+        StringBuilder sb = new StringBuilder();
+        for (CatalogClient.ProdutoNumeradoResponse p : catalogo) {
+            sb.append(p.getNumero()).append(" - ").append(p.getNome())
+                .append(" - R$ ").append(p.getPreco()).append("\n");
+        }
+        return sb.toString();
+    }
+
+    // "2, 5, 5" -> 1x produto do número 2, 2x produto do número 5 (conta as
+    // repetições). Números que não batem com nenhum item do cardápio são
+    // ignorados silenciosamente (o cliente vê o resumo final e pode corrigir).
+    private boolean tentarInterpretarNumeros(SessaoWhatsapp s, String texto, List<CatalogClient.ProdutoNumeradoResponse> catalogo) {
+        Map<Integer, Long> contagem = new java.util.LinkedHashMap<>();
+        for (String parte : texto.split("[,;\\s]+")) {
+            if (parte.isBlank()) continue;
+            try {
+                int numero = Integer.parseInt(parte.trim());
+                contagem.merge(numero, 1L, Long::sum);
+            } catch (NumberFormatException ignored) { }
+        }
+        if (contagem.isEmpty()) return false;
+
+        boolean algumItem = false;
+        for (Map.Entry<Integer, Long> entrada : contagem.entrySet()) {
+            CatalogClient.ProdutoNumeradoResponse produto = catalogo.stream()
+                .filter(p -> p.getNumero().equals(entrada.getKey()))
+                .findFirst().orElse(null);
+            if (produto == null) continue;
+            adicionarOuIncrementarItem(s, produto.getProdutoId(), produto.getNome(), produto.getPreco(), entrada.getValue().intValue());
+            algumItem = true;
+        }
+        return algumItem;
+    }
+
+    private boolean tentarInterpretarComIA(SessaoWhatsapp s, String textoOriginal, List<CatalogClient.ProdutoNumeradoResponse> catalogo) {
+        OllamaClient.PedidoInterpretado interpretado = ollamaClient.interpretar(
+            textoOriginal, catalogo, s.getEnderecoRua(), s.getMetodoPagamento());
+        if (interpretado == null) return false;
+
+        boolean algumaCoisa = false;
+
+        if (interpretado.getItens() != null) {
+            for (OllamaClient.ItemInterpretado item : interpretado.getItens()) {
+                if (item.getProdutoId() == null) continue;
+                CatalogClient.ProdutoNumeradoResponse produto = catalogo.stream()
+                    .filter(p -> p.getProdutoId().equals(item.getProdutoId()))
+                    .findFirst().orElse(null);
+                if (produto == null) continue;
+                int quantidade = item.getQuantidade() == null || item.getQuantidade() < 1 ? 1 : item.getQuantidade();
+                adicionarOuIncrementarItem(s, produto.getProdutoId(), produto.getNome(), produto.getPreco(), quantidade);
+                algumaCoisa = true;
+            }
+        }
+        if (interpretado.getEndereco() != null && !interpretado.getEndereco().isBlank() && s.getEnderecoRua() == null) {
+            s.setEnderecoRua(interpretado.getEndereco().trim());
+            algumaCoisa = true;
+        }
+        if (interpretado.getFormaPagamento() != null && s.getMetodoPagamento() == null
+            && List.of("DINHEIRO", "PIX", "CARTAO_CREDITO", "CARTAO_DEBITO").contains(interpretado.getFormaPagamento())) {
+            s.setMetodoPagamento(interpretado.getFormaPagamento());
+            algumaCoisa = true;
+        }
+        return algumaCoisa;
+    }
+
+    private void adicionarOuIncrementarItem(SessaoWhatsapp s, Long produtoId, String nome, BigDecimal preco, int quantidade) {
+        ItemCarrinho existente = s.getItens().stream()
+            .filter(i -> produtoId.equals(i.getProdutoId()))
+            .findFirst().orElse(null);
+        if (existente != null) {
+            existente.setQuantidade(existente.getQuantidade() + quantidade);
+            return;
+        }
+        if (s.getItens() == null) s.setItens(new ArrayList<>());
+        s.getItens().add(ItemCarrinho.builder()
+            .sessao(s).produtoId(produtoId).produtoNome(nome)
+            .precoUnitario(preco).quantidade(quantidade)
+            .build());
+    }
+
+    // Depois de mesclar o que foi entendido da mensagem, decide o próximo
+    // passo exatamente como o fluxo legado (endereço → pagamento → resumo) —
+    // pula direto pro resumo se endereço e pagamento já vieram na mesma
+    // mensagem (ver item 3: cliente pode mandar tudo junto).
+    private void avancarAposColetarItens(SessaoWhatsapp s) {
+        if (s.getEnderecoRua() == null) {
+            s.setEstado(EstadoSessao.COLETANDO_ENDERECO);
+            enviar(s.getTelefone(), "Show! Anotado. Agora me informa o endereço de entrega:\n_Ex: Rua das Flores, 123, Centro, Aracaju_", s.getRestauranteId());
+            return;
+        }
+        if (s.getMetodoPagamento() == null) {
+            s.setEstado(EstadoSessao.COLETANDO_PAGAMENTO);
+            enviar(s.getTelefone(), mensagemService.resolverTexto(s.getRestauranteId(), "CHATBOT_PEDIR_PAGAMENTO", null), s.getRestauranteId());
+            return;
+        }
+        s.setEstado(EstadoSessao.CONFIRMANDO_PEDIDO);
+        mostrarResumoFinal(s);
+    }
+
     private void processarNumeroLid(SessaoWhatsapp s, String texto, String pushName) {
         String digitos = texto.replaceAll("\\D", "");
         if (digitos.length() < 10 || digitos.length() > 11) {
@@ -262,7 +437,8 @@ public class ChatbotService {
             .map(i -> i.getPrecoUnitario().multiply(BigDecimal.valueOf(i.getQuantidade())))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        StringBuilder sb = new StringBuilder("📋 *Resumo do Pedido*\n\n");
+        StringBuilder sb = new StringBuilder("Claro! Aqui está seu pedido!\nPor favor confirme abaixo para podermos enviar o pedido para a cozinha\n\n");
+        sb.append("📋 *Resumo do Pedido*\n\n");
         sb.append("👤 *Cliente:* ").append(s.getClienteNome()).append("\n");
         sb.append("📍 *Endereço:* ").append(s.getEnderecoRua()).append("\n\n");
         sb.append("🛒 *Itens:*\n");
@@ -326,6 +502,47 @@ public class ChatbotService {
         enviar(telefone, mensagem, restauranteId);
     }
 
+    private static final int MINUTOS_LEMBRETE_CARDAPIO = 10;
+
+    // Varredura periódica (não precisa ser exata ao minuto — fixedDelay conta
+    // a partir do fim da execução anterior, então não empilha se uma
+    // varredura demorar). Sem @Transactional de propósito, mesmo motivo do
+    // processarMensagem: cada sessão aqui dispara chamadas HTTP bloqueantes
+    // (catalog-service via Feign, Evolution API via RestTemplate) — não dá
+    // pra segurar uma transação JPA aberta durante isso.
+    @Scheduled(fixedDelay = 60_000)
+    public void enviarLembretesCardapio() {
+        LocalDateTime limite = LocalDateTime.now().minusMinutes(MINUTOS_LEMBRETE_CARDAPIO);
+        List<SessaoWhatsapp> pendentes = sessaoRepo.findByEstadoAndLembreteCardapioEnviadoFalseAndUltimaInteracaoBefore(
+            EstadoSessao.AGUARDANDO_PEDIDO_WEB, limite);
+        for (SessaoWhatsapp s : pendentes) {
+            try {
+                enviarLembreteCardapio(s);
+            } catch (Exception e) {
+                log.error("Falha ao enviar lembrete de cardápio pra sessão {}: {}", s.getId(), e.getMessage());
+            }
+        }
+    }
+
+    private void enviarLembreteCardapio(SessaoWhatsapp s) {
+        List<CatalogClient.ProdutoNumeradoResponse> catalogo = buscarCatalogoNumerado(s.getRestauranteId());
+        String imagem = whatsappConfigService.getImagemCardapio(s.getRestauranteId());
+
+        String textoCardapio = catalogo.isEmpty() ? "" : "\n\n" + montarTextoCardapio(catalogo);
+        String instrucao = "Ainda está por aí? 😊 Segue nosso cardápio! Responda com os números dos produtos que deseja, separados por vírgula (ex: 1, 3, 3), ou escreva o que você quer, seu endereço e a forma de pagamento."
+            + textoCardapio;
+
+        if (imagem != null && !imagem.isBlank()) {
+            evolutionClient.enviarImagem(s.getTelefone(), imagem, "");
+            mensagemWhatsappService.registrar(s.getRestauranteId(), s.getTelefone(), DirecaoMensagem.ENVIADA, "[imagem do cardápio]");
+        }
+        enviar(s.getTelefone(), instrucao, s.getRestauranteId());
+
+        s.setEstado(EstadoSessao.COLETANDO_PEDIDO_CHAT);
+        s.setLembreteCardapioEnviado(true);
+        sessaoRepo.save(s);
+    }
+
     private void resetarSessao(SessaoWhatsapp s) {
         s.setEstado(EstadoSessao.INICIO);
         s.setClienteNome(null);
@@ -338,6 +555,7 @@ public class ChatbotService {
         s.setObservacao(null);
         s.setEntregaId(null);
         s.setErrosConsecutivos(0);
+        s.setLembreteCardapioEnviado(false);
         s.getItens().clear();
     }
 

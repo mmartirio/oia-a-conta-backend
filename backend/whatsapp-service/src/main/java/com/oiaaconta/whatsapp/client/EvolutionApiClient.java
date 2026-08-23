@@ -49,6 +49,34 @@ public class EvolutionApiClient {
         }
     }
 
+    // Evolution API aceita a imagem em base64 puro (sem o prefixo "data:...")
+    // ou uma URL — mandamos o base64 puro já que a imagem vem do upload do
+    // admin (data URI), só cortando o prefixo antes de enviar.
+    public void enviarImagem(String telefone, String imagemBase64OuDataUri, String legenda) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("apikey", apiKey);
+
+            String media = imagemBase64OuDataUri.contains(",")
+                ? imagemBase64OuDataUri.substring(imagemBase64OuDataUri.indexOf(',') + 1)
+                : imagemBase64OuDataUri;
+
+            Map<String, Object> body = new java.util.LinkedHashMap<>();
+            body.put("number", telefone);
+            body.put("mediatype", "image");
+            body.put("media", media);
+            body.put("caption", legenda == null ? "" : legenda);
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+            restTemplate.postForEntity(
+                apiUrl + "/message/sendMedia/" + instanceName,
+                entity, Object.class);
+        } catch (Exception e) {
+            log.error("Erro ao enviar imagem WhatsApp para {}: {}", telefone, e.getMessage());
+        }
+    }
+
     public void enviarBotaoResposta(String telefone, String titulo, String descricao, String textoBotao, String id) {
         try {
             HttpHeaders headers = new HttpHeaders();

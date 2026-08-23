@@ -78,6 +78,8 @@ public class WhatsappPublicoController {
                 .produtoNome(dto.getProdutoNome())
                 .precoUnitario(dto.getPrecoUnitario())
                 .quantidade(dto.getQuantidade())
+                .comboId(dto.getComboId())
+                .comboNome(dto.getComboId() != null ? dto.getProdutoNome() : null)
                 .build());
         }
         sessao.getItens().clear();
@@ -89,6 +91,8 @@ public class WhatsappPublicoController {
                 .produtoNome(i.getProdutoNome())
                 .precoUnitario(i.getPrecoUnitario())
                 .quantidade(i.getQuantidade())
+                .comboId(i.getComboId())
+                .comboQuantidade(i.getComboId() != null ? i.getQuantidade() : null)
                 .build())
             .toList();
 

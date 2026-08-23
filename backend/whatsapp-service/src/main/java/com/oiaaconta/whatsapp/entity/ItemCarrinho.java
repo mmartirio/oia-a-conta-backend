@@ -21,9 +21,12 @@ public class ItemCarrinho {
     @JoinColumn(name = "sessao_id", nullable = false)
     private SessaoWhatsapp sessao;
 
-    @Column(name = "produto_id", nullable = false)
+    // Nulo quando o item é um Combo (ver comboId abaixo).
+    @Column(name = "produto_id")
     private Long produtoId;
 
+    // Nome de exibição — do produto OU do combo, indistintamente (usado como
+    // está no texto de confirmação do WhatsApp).
     @Column(name = "produto_nome", nullable = false, length = 200)
     private String produtoNome;
 
@@ -32,4 +35,10 @@ public class ItemCarrinho {
 
     @Column(nullable = false)
     private Integer quantidade;
+
+    @Column(name = "combo_id")
+    private Long comboId;
+
+    @Column(name = "combo_nome", length = 150)
+    private String comboNome;
 }

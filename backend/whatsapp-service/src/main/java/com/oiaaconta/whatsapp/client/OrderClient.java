@@ -42,6 +42,8 @@ public interface OrderClient {
         private String produtoNome;
         private BigDecimal precoUnitario;
         private Integer quantidade;
+        private Long comboId;
+        private Integer comboQuantidade;
     }
 
     @Data
