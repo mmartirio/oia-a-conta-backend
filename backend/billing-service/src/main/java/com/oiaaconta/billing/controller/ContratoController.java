@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 @RestController
 @RequestMapping("/api/contratos")
@@ -69,5 +70,13 @@ public class ContratoController {
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     public ResponseEntity<Page<Pagamento>> pagamentos(@PathVariable Long id, @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(billingService.listarPagamentosDoContrato(id, pageable));
+    }
+
+    // Restaurante sem contrato (ex: cadastrado fora do fluxo normal de
+    // registro) — resposta limpa de "não encontrado" em vez de deixar a
+    // exceção não tratada propagar como erro genérico.
+    @ExceptionHandler(NoSuchElementException.class)
+    public ResponseEntity<Void> handleNaoEncontrado() {
+        return ResponseEntity.notFound().build();
     }
 }
