@@ -1,9 +1,13 @@
 package com.oiaaconta.order.service;
 
+import com.oiaaconta.order.client.CatalogClient;
+import com.oiaaconta.order.client.IfoodClient;
 import com.oiaaconta.order.client.NotificationClient;
 import com.oiaaconta.order.client.WhatsappClient;
 import com.oiaaconta.order.dto.NotificacaoLocalizacaoEntrega;
 import com.oiaaconta.order.dto.NotificacaoMessage;
+import com.oiaaconta.order.dto.catalog.ComboItemDto;
+import com.oiaaconta.order.dto.catalog.ComboResponseDto;
 import com.oiaaconta.order.dto.request.EntregaRequest;
 import com.oiaaconta.order.dto.response.EntregaResponse;
 import com.oiaaconta.order.dto.response.ItemEntregaResponse;
@@ -22,7 +26,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Optional;
 import java.util.List;
 
 @Service
@@ -35,11 +42,42 @@ public class EntregaService {
     private final WhatsappClient whatsappClient;
     private final ConfiguracaoService configuracaoService;
     private final NotificationClient notificationClient;
+    private final CatalogClient catalogClient;
+    private final FreteService freteService;
+    private final IfoodClient ifoodClient;
+    private final GeocodingService geocodingService;
 
     @Transactional
     public EntregaResponse criar(Long restauranteId, EntregaRequest request) {
         if (request.isOrigemPdv() && request.getMetodoPagamento() == MetodoPagamento.PIX) {
             throw new BusinessException("Delivery criado pelo PDV não aceita PIX — o entregador recebe em dinheiro ou cartão e repassa ao caixa na volta.");
+        }
+        if (request.isOrigemIfood()) {
+            if (request.getIfoodOrderId() == null || request.getIfoodOrderId().isBlank()) {
+                throw new BusinessException("Pedido do iFood sem ifoodOrderId");
+            }
+            // Idempotência: se o mesmo evento do iFood for reprocessado (ex:
+            // o acknowledgment falhou depois de já termos criado a entrega),
+            // devolve a entrega existente em vez de duplicar o pedido.
+            Optional<Entrega> existente = entregaRepository.findByRestauranteIdAndIfoodOrderId(restauranteId, request.getIfoodOrderId());
+            if (existente.isPresent()) {
+                return toResponse(existente.get());
+            }
+        }
+
+        // Pedido de PDV já chega geocodificado no cliente (ver
+        // PdvNovoDelivery.tsx); WhatsApp/cardápio público não geocodifica no
+        // checkout, então o endereço chega só como texto — sem coordenada
+        // aqui, tanto o frete por distância quanto a sugestão de rota do
+        // entregador ficam indisponíveis pro pedido (ver GeocodingService).
+        Double enderecoLatitude = request.getEnderecoLatitude();
+        Double enderecoLongitude = request.getEnderecoLongitude();
+        if (enderecoLatitude == null || enderecoLongitude == null) {
+            GeocodingService.Coordenada coordenada = geocodingService.geocodificar(enderecoParaGeocodificacao(request));
+            if (coordenada != null) {
+                enderecoLatitude = coordenada.lat();
+                enderecoLongitude = coordenada.lng();
+            }
         }
 
         Entrega entrega = Entrega.builder()
@@ -51,35 +89,60 @@ public class EntregaService {
             .enderecoBairro(request.getEnderecoBairro())
             .enderecoCidade(request.getEnderecoCidade())
             .enderecoComplemento(request.getEnderecoComplemento())
+            .enderecoLatitude(enderecoLatitude)
+            .enderecoLongitude(enderecoLongitude)
             .metodoPagamento(request.getMetodoPagamento())
             .parcelas(request.getParcelas())
             .observacao(request.getObservacao())
             .origemWhatsapp(request.isOrigemWhatsapp())
             .origemPdv(request.isOrigemPdv())
+            .origemIfood(request.isOrigemIfood())
+            .ifoodOrderId(request.getIfoodOrderId())
             .build();
 
         // Pedido lançado por um funcionário (PDV/garçom) já é uma decisão da
         // casa — pula o gate de aceitar/rejeitar, que existe só para pedidos
-        // que o próprio cliente fez sozinho (WhatsApp/cardápio).
-        if (!request.isOrigemWhatsapp()) {
-            entrega.setStatus(StatusEntrega.CONFIRMADA);
+        // que o próprio cliente fez sozinho (WhatsApp/cardápio/iFood). Vai
+        // direto pra produção (ACEITA) — o entregador é capturado só depois,
+        // no clique de "Saiu" (ver EntregaService.saiu).
+        if (!request.isOrigemWhatsapp() && !request.isOrigemIfood()) {
+            entrega.setStatus(StatusEntrega.ACEITA);
         }
 
-        List<ItemEntrega> itens = request.getItens().stream()
-            .map(item -> ItemEntrega.builder()
-                .entrega(entrega)
-                .produtoId(item.getProdutoId())
-                .produtoNome(item.getProdutoNome())
-                .quantidade(item.getQuantidade())
-                .precoUnitario(item.getPrecoUnitario())
-                .observacao(item.getObservacao())
-                .build())
-            .toList();
+        // ArrayList mutável, não .toList() (imutável) — "entrega" é salva de
+        // novo mais abaixo (pra gravar pedidoCozinhaId) dentro da mesma
+        // transação, e o merge dessa segunda save tenta fazer clear() na
+        // coleção "itens"; numa lista imutável isso derruba com
+        // UnsupportedOperationException.
+        List<ItemEntrega> itens = new ArrayList<>();
+        for (EntregaRequest.ItemRequest item : request.getItens()) {
+            if (item.getComboId() != null) {
+                itens.addAll(expandirCombo(entrega, item, restauranteId));
+            } else if (item.getProdutoId() != null) {
+                itens.add(ItemEntrega.builder()
+                    .entrega(entrega)
+                    .produtoId(item.getProdutoId())
+                    .produtoNome(item.getProdutoNome())
+                    .quantidade(item.getQuantidade())
+                    .precoUnitario(item.getPrecoUnitario())
+                    .observacao(item.getObservacao())
+                    .build());
+            } else {
+                throw new BusinessException("Cada item precisa ter um produto ou um combo");
+            }
+        }
         entrega.setItens(itens);
+
+        FreteService.FreteCalculado frete = freteService.calcular(
+            restauranteId, enderecoLatitude, enderecoLongitude);
+        if (frete.disponivel()) {
+            entrega.setDistanciaKm(frete.distanciaKm());
+            entrega.setValorFrete(frete.valorFrete());
+        }
 
         Entrega saved = entregaRepository.save(entrega);
 
-        if (request.isOrigemWhatsapp()) {
+        if (request.isOrigemWhatsapp() || request.isOrigemIfood()) {
             try {
                 notificationClient.novaEntregaAguardando(NotificacaoMessage.builder()
                     .tipo("NOVA_ENTREGA_AGUARDANDO")
@@ -96,11 +159,73 @@ public class EntregaService {
                 saved.setPedidoCozinhaId(pedidoId);
                 saved = entregaRepository.save(saved);
             } catch (Exception e) {
-                log.warn("Falha ao criar pedido na cozinha para entrega #{}: {}", saved.getId(), e.getMessage());
+                log.warn("Falha ao criar pedido na cozinha para entrega #{}", saved.getId(), e);
             }
         }
 
         return toResponse(saved);
+    }
+
+    // Monta a string de endereço pra geocodificação — o checkout do WhatsApp/
+    // cardápio público hoje só manda "enderecoRua" como texto livre (sem
+    // número/bairro/cidade separados), então usa o que tiver disponível.
+    // ", Brasil" no fim ajuda o Nominatim a desambiguar nomes de rua comuns
+    // entre cidades diferentes.
+    private String enderecoParaGeocodificacao(EntregaRequest request) {
+        StringBuilder sb = new StringBuilder();
+        if (request.getEnderecoRua() != null && !request.getEnderecoRua().isBlank()) {
+            sb.append(request.getEnderecoRua());
+        }
+        appendSeNaoVazio(sb, request.getEnderecoNumero());
+        appendSeNaoVazio(sb, request.getEnderecoBairro());
+        appendSeNaoVazio(sb, request.getEnderecoCidade());
+        if (sb.isEmpty()) return null;
+        sb.append(", Brasil");
+        return sb.toString();
+    }
+
+    private void appendSeNaoVazio(StringBuilder sb, String valor) {
+        if (valor != null && !valor.isBlank()) {
+            if (!sb.isEmpty()) sb.append(", ");
+            sb.append(valor);
+        }
+    }
+
+    // Busca a composição do combo (endpoint público — este fluxo não tem JWT
+    // de usuário, é serviço-a-serviço a partir de um cliente anônimo) e
+    // expande em N ItemEntrega reais, mesmo cálculo de rateio usado pelo
+    // combo no PDV/comanda (PedidoService.expandirCombo).
+    private List<ItemEntrega> expandirCombo(Entrega entrega, EntregaRequest.ItemRequest item, Long restauranteId) {
+        ComboResponseDto combo;
+        try {
+            combo = catalogClient.buscarComboPublico(restauranteId, item.getComboId());
+        } catch (Exception e) {
+            throw new BusinessException("Combo não encontrado");
+        }
+        if (!combo.isAtivo()) {
+            throw new BusinessException("Combo '" + combo.getNome() + "' está inativo");
+        }
+        int comboQuantidade = item.getComboQuantidade() != null ? item.getComboQuantidade() : 1;
+        if (comboQuantidade < 1) {
+            throw new BusinessException("Quantidade de combo inválida");
+        }
+
+        List<ItemEntrega> expandido = new ArrayList<>();
+        for (ComboItemDto comboItem : combo.getItens()) {
+            BigDecimal precoUnitario = comboItem.getValorAlocado()
+                .divide(BigDecimal.valueOf(comboItem.getQuantidade()), 2, RoundingMode.HALF_UP);
+            expandido.add(ItemEntrega.builder()
+                .entrega(entrega)
+                .produtoId(comboItem.getProdutoId())
+                .produtoNome(comboItem.getProdutoNome())
+                .quantidade(comboItem.getQuantidade() * comboQuantidade)
+                .observacao(item.getObservacao())
+                .precoUnitario(precoUnitario)
+                .comboId(combo.getId())
+                .comboNome(combo.getNome())
+                .build());
+        }
+        return expandido;
     }
 
     public Page<EntregaResponse> listar(Long restauranteId, Pageable pageable) {
@@ -122,24 +247,31 @@ public class EntregaService {
 
     // Cozinha/admin decide se aceita o pedido do cliente (WhatsApp/cardápio).
     // Só a partir daqui a cozinha é notificada e o cliente recebe a confirmação.
+    // Vai direto pra produção (ACEITA) — sem estágio intermediário de "novo
+    // pedido" esperando um entregador; o entregador é capturado só no "Saiu".
     @Transactional
     public EntregaResponse confirmar(Long restauranteId, Long id) {
         Entrega entrega = find(restauranteId, id);
         if (entrega.getStatus() != StatusEntrega.AGUARDANDO) {
             throw new BusinessException("Pedido não está aguardando confirmação");
         }
-        entrega.setStatus(StatusEntrega.CONFIRMADA);
+        entrega.setStatus(StatusEntrega.ACEITA);
         Entrega saved = entregaRepository.save(entrega);
 
-        if (Boolean.TRUE.equals(entrega.getOrigemWhatsapp())) {
+        if (Boolean.TRUE.equals(entrega.getOrigemWhatsapp()) || Boolean.TRUE.equals(entrega.getOrigemIfood())) {
             try {
                 Long pedidoId = orchestrationService.criarPedidoCozinha(saved);
                 saved.setPedidoCozinhaId(pedidoId);
                 saved = entregaRepository.save(saved);
             } catch (Exception e) {
-                log.warn("Falha ao criar pedido na cozinha para entrega #{}: {}", saved.getId(), e.getMessage());
+                log.warn("Falha ao criar pedido na cozinha para entrega #{}", saved.getId(), e);
             }
+        }
+        if (Boolean.TRUE.equals(entrega.getOrigemWhatsapp())) {
             notificarWhatsapp(restauranteId, saved.getId(), "PEDIDO_ACEITO");
+        }
+        if (Boolean.TRUE.equals(entrega.getOrigemIfood())) {
+            notificarIfood(saved, "CONFIRMADA");
         }
 
         return toResponse(saved);
@@ -163,21 +295,29 @@ public class EntregaService {
             notificarWhatsapp(restauranteId, saved.getId(), "PEDIDO_REJEITADO",
                 java.util.Map.of("MOTIVO", motivo.trim()));
         }
+        if (Boolean.TRUE.equals(entrega.getOrigemIfood())) {
+            notificarIfood(saved, "CANCELADA");
+        }
 
         return toResponse(saved);
     }
 
+    // Sem estágio manual de "aceitar" no fluxo principal (entrega já nasce em
+    // ACEITA/produção), mas o painel do entregador ainda precisa de um jeito
+    // de reservar uma entrega sem entregador definido — pra vários
+    // entregadores não disputarem a mesma corrida sem saber. Não muda status.
     @Transactional
-    public EntregaResponse aceitar(Long restauranteId, Long id, Long entregadorId, String entregadorNome) {
+    public EntregaResponse atribuirEntregador(Long restauranteId, Long id, Long entregadorId, String entregadorNome) {
         Entrega entrega = find(restauranteId, id);
-        if (entrega.getStatus() != StatusEntrega.CONFIRMADA) {
-            throw new BusinessException("Entrega ainda não foi confirmada pela cozinha");
+        if (entrega.getStatus() != StatusEntrega.ACEITA && entrega.getStatus() != StatusEntrega.PRONTO_PARA_ENTREGA) {
+            throw new BusinessException("Entrega não está disponível para ser assumida");
         }
-        entrega.setStatus(StatusEntrega.ACEITA);
+        if (entrega.getEntregadorId() != null) {
+            throw new BusinessException("Esta entrega já foi assumida por outro entregador");
+        }
         entrega.setEntregadorId(entregadorId);
         entrega.setEntregadorNome(entregadorNome);
-        Entrega saved = entregaRepository.save(entrega);
-        return toResponse(saved);
+        return toResponse(entregaRepository.save(entrega));
     }
 
     @Transactional
@@ -188,22 +328,47 @@ public class EntregaService {
         }
         entrega.setStatus(StatusEntrega.PRONTO_PARA_ENTREGA);
         EntregaResponse resp = toResponse(entregaRepository.save(entrega));
+        // Espelha pro board da cozinha — clicar "Pronto" no Delivery também
+        // fecha o card lá (mesmo efeito do cozinheiro clicar "Marcar Pronto").
+        try {
+            orchestrationService.propagarProntoParaCozinha(entrega);
+        } catch (Exception e) {
+            log.warn("Falha ao propagar PRONTO pra cozinha (entrega #{}): {}", entrega.getId(), e.getMessage());
+        }
         if (Boolean.TRUE.equals(entrega.getOrigemWhatsapp())) {
             notificarWhatsapp(restauranteId, entrega.getId(), "PEDIDO_PRONTO");
+        }
+        if (Boolean.TRUE.equals(entrega.getOrigemIfood())) {
+            notificarIfood(entrega, "PRONTO_PARA_ENTREGA");
         }
         return resp;
     }
 
     @Transactional
-    public EntregaResponse saiu(Long restauranteId, Long id) {
+    public EntregaResponse saiu(Long restauranteId, Long id, Long userId, String userNome) {
         Entrega entrega = find(restauranteId, id);
         if (entrega.getStatus() != StatusEntrega.ACEITA && entrega.getStatus() != StatusEntrega.PRONTO_PARA_ENTREGA) {
             throw new BusinessException("Entrega não está pronta para sair");
         }
         entrega.setStatus(StatusEntrega.SAIU_PARA_ENTREGA);
+        // Sem "aceitar" manual, o entregador é quem quer que clique "Saiu"
+        // primeiro — captura no pickup, não antes.
+        if (entrega.getEntregadorId() == null) {
+            entrega.setEntregadorId(userId);
+            entrega.setEntregadorNome(userNome);
+        }
         EntregaResponse resp = toResponse(entregaRepository.save(entrega));
+        // Entregador pegou o pedido — sai da tela da cozinha.
+        try {
+            orchestrationService.finalizarPedidoCozinha(entrega);
+        } catch (Exception e) {
+            log.warn("Falha ao finalizar pedido na cozinha (entrega #{}): {}", entrega.getId(), e.getMessage());
+        }
         if (Boolean.TRUE.equals(entrega.getOrigemWhatsapp())) {
             notificarWhatsapp(restauranteId, entrega.getId(), "PEDIDO_SAIU");
+        }
+        if (Boolean.TRUE.equals(entrega.getOrigemIfood())) {
+            notificarIfood(entrega, "SAIU_PARA_ENTREGA");
         }
         return resp;
     }
@@ -238,6 +403,9 @@ public class EntregaService {
             } else {
                 notificarWhatsapp(restauranteId, entrega.getId(), "PEDIDO_ENTREGUE");
             }
+        }
+        if (Boolean.TRUE.equals(entrega.getOrigemIfood())) {
+            notificarIfood(entrega, "ENTREGUE");
         }
 
         return resp;
@@ -307,7 +475,7 @@ public class EntregaService {
 
     public Page<EntregaResponse> listarPendentesPagamento(Long restauranteId, Pageable pageable) {
         return entregaRepository
-            .findByRestauranteIdAndStatusAndPagamentoConfirmadoCaixaOrderByCreatedAtDesc(
+            .findByRestauranteIdAndStatusAndPagamentoConfirmadoCaixaOrderByEntregueAtAsc(
                 restauranteId, StatusEntrega.ENTREGUE, false, pageable)
             .map(this::toResponse);
     }
@@ -329,6 +497,22 @@ public class EntregaService {
         }
     }
 
+    // Espelha notificarWhatsapp — efeito colateral best-effort, nunca deve
+    // travar a mudança de status local por uma falha na integração externa.
+    // "status" aqui usa os mesmos nomes do StatusEntrega (CONFIRMADA,
+    // PRONTO_PARA_ENTREGA, SAIU_PARA_ENTREGA, ENTREGUE, CANCELADA) —
+    // ifood-service traduz pra chamada certa da Order API do iFood.
+    private void notificarIfood(Entrega entrega, String status) {
+        try {
+            ifoodClient.atualizarStatusPedido(java.util.Map.of(
+                "restauranteId", entrega.getRestauranteId(),
+                "ifoodOrderId", entrega.getIfoodOrderId(),
+                "status", status));
+        } catch (Exception e) {
+            log.warn("Falha ao notificar iFood (pedido {}) status {}: {}", entrega.getIfoodOrderId(), status, e.getMessage());
+        }
+    }
+
     private Entrega find(Long restauranteId, Long id) {
         return entregaRepository.findByIdAndRestauranteId(id, restauranteId)
             .orElseThrow(() -> new ResourceNotFoundException("Entrega não encontrada"));
@@ -341,12 +525,15 @@ public class EntregaService {
                 .id(i.getId()).produtoId(i.getProdutoId())
                 .produtoNome(i.getProdutoNome()).quantidade(i.getQuantidade())
                 .precoUnitario(i.getPrecoUnitario()).observacao(i.getObservacao())
+                .comboId(i.getComboId()).comboNome(i.getComboNome())
                 .build())
             .toList();
 
-        BigDecimal total = e.getItens().stream()
+        BigDecimal subtotalItens = e.getItens().stream()
             .map(i -> i.getPrecoUnitario().multiply(BigDecimal.valueOf(i.getQuantidade())))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal valorFrete = e.getValorFrete() != null ? e.getValorFrete() : BigDecimal.ZERO;
+        BigDecimal total = subtotalItens.add(valorFrete);
 
         return EntregaResponse.builder()
             .id(e.getId()).restauranteId(e.getRestauranteId())
@@ -365,6 +552,16 @@ public class EntregaService {
             .criadoEm(e.getCreatedAt()).entregueEm(e.getEntregueAt())
             .latitude(e.getLatitude()).longitude(e.getLongitude())
             .localizacaoAtualizadaEm(e.getLocalizacaoAtualizadaEm())
+            .enderecoLatitude(e.getEnderecoLatitude()).enderecoLongitude(e.getEnderecoLongitude())
+            .distanciaKm(e.getDistanciaKm()).valorFrete(valorFrete)
+            .origemIfood(Boolean.TRUE.equals(e.getOrigemIfood())).ifoodOrderId(e.getIfoodOrderId())
             .build();
+    }
+
+    // Preview do frete antes de confirmar o pedido (não persiste nada) — o
+    // PDV/garçom usa isso pra mostrar o valor do frete pro cliente antes de
+    // finalizar a venda.
+    public FreteService.FreteCalculado calcularFretePreview(Long restauranteId, Double enderecoLatitude, Double enderecoLongitude) {
+        return freteService.calcular(restauranteId, enderecoLatitude, enderecoLongitude);
     }
 }

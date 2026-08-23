@@ -45,6 +45,16 @@ public class SessaoCaixa {
     @Column(name = "valor_fechamento", precision = 10, scale = 2)
     private BigDecimal valorFechamento;
 
+    // Esperado = abertura + vendas em dinheiro da sessão (só o que passa pela
+    // gaveta física — PIX/cartão não contam). Diferença = contado - esperado.
+    // É um dado de auditoria/controle interno do caixa: risco do negócio, não
+    // desconto automático de salário/comissão de quem fechou o caixa.
+    @Column(name = "valor_esperado_dinheiro", precision = 10, scale = 2)
+    private BigDecimal valorEsperadoDinheiro;
+
+    @Column(name = "diferenca_caixa", precision = 10, scale = 2)
+    private BigDecimal diferencaCaixa;
+
     @Column(name = "fechado_em")
     private LocalDateTime fechadoEm;
 

@@ -44,4 +44,12 @@ public class EntregaResponse {
     private Double latitude;
     private Double longitude;
     private LocalDateTime localizacaoAtualizadaEm;
+
+    private Double enderecoLatitude;
+    private Double enderecoLongitude;
+    private BigDecimal distanciaKm;
+    private BigDecimal valorFrete;
+
+    private Boolean origemIfood;
+    private String ifoodOrderId;
 }

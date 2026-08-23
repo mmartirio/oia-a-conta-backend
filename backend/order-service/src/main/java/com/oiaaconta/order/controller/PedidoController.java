@@ -22,9 +22,10 @@ public class PedidoController {
     @PreAuthorize("hasAnyRole('GARCON','ADMIN','SUPER_ADMIN')")
     public ResponseEntity<PedidoResponse> enviar(
             @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable Long comandaId,
             @Valid @RequestBody PedidoRequest request) {
-        return ResponseEntity.status(201).body(pedidoService.enviarParaCozinha(restauranteId, comandaId, request));
+        return ResponseEntity.status(201).body(pedidoService.enviarParaCozinha(restauranteId, comandaId, request, authHeader));
     }
 
     @GetMapping("/api/pedidos/ativos")
@@ -64,8 +65,9 @@ public class PedidoController {
     @PreAuthorize("hasAnyRole('ADMIN','COZINHA','GARCON','SUPER_ADMIN')")
     public ResponseEntity<PedidoResponse> cancelar(
             @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable Long id) {
-        return ResponseEntity.ok(pedidoService.cancelar(restauranteId, id));
+        return ResponseEntity.ok(pedidoService.cancelar(restauranteId, id, authHeader));
     }
 
     @GetMapping("/api/pedidos/resumo-dia")

@@ -16,6 +16,8 @@ public class SessaoCaixaResponse {
     private LocalDateTime abertoEm;
     private String fechadoPorNome;
     private BigDecimal valorFechamento;
+    private BigDecimal valorEsperadoDinheiro;
+    private BigDecimal diferencaCaixa;
     private LocalDateTime fechadoEm;
     private StatusSessaoCaixa status;
 }

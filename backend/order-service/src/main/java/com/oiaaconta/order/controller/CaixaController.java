@@ -2,6 +2,7 @@ package com.oiaaconta.order.controller;
 
 import com.oiaaconta.order.dto.request.AbrirCaixaRequest;
 import com.oiaaconta.order.dto.request.FecharCaixaRequest;
+import com.oiaaconta.order.dto.response.ResumoFinanceiroResponse;
 import com.oiaaconta.order.dto.response.SessaoCaixaResponse;
 import com.oiaaconta.order.service.CaixaService;
 import jakarta.validation.Valid;
@@ -31,6 +32,16 @@ public class CaixaController {
     public ResponseEntity<List<SessaoCaixaResponse>> historico(
             @RequestHeader("X-Restaurante-Id") Long restauranteId) {
         return ResponseEntity.ok(caixaService.historico(restauranteId));
+    }
+
+    // Valores arrecadados desde a abertura do caixa até agora, por forma de
+    // pagamento — usado no modal de fechamento pra conferência com o valor
+    // contado manualmente.
+    @GetMapping("/resumo")
+    @PreAuthorize("hasAnyRole('CAIXA','ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<ResumoFinanceiroResponse> resumo(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId) {
+        return ResponseEntity.ok(caixaService.resumo(restauranteId));
     }
 
     @PostMapping("/abrir")

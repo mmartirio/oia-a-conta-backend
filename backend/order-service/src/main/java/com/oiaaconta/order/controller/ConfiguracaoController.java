@@ -2,10 +2,10 @@ package com.oiaaconta.order.controller;
 
 import com.oiaaconta.order.dto.request.ConfiguracaoRequest;
 import com.oiaaconta.order.dto.request.EncerramentoAntecipadoRequest;
+import com.oiaaconta.order.dto.request.FreteConfigRequest;
 import com.oiaaconta.order.dto.request.HorarioRequest;
 import com.oiaaconta.order.dto.request.PausaProgramadaRequest;
 import com.oiaaconta.order.dto.request.StatusLojaRequest;
-import com.oiaaconta.order.dto.request.TaxasMaquininhaRequest;
 import com.oiaaconta.order.dto.response.ConfiguracaoResponse;
 import com.oiaaconta.order.dto.response.HorarioResponse;
 import com.oiaaconta.order.dto.response.PausaResponse;
@@ -61,12 +61,12 @@ public class ConfiguracaoController {
         return ResponseEntity.ok(configuracaoService.upsert(restauranteId, request));
     }
 
-    @PutMapping("/taxas-maquininha")
+    @PutMapping("/frete")
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
-    public ResponseEntity<ConfiguracaoResponse> atualizarTaxasMaquininha(
+    public ResponseEntity<ConfiguracaoResponse> atualizarFrete(
             @RequestHeader("X-Restaurante-Id") Long restauranteId,
-            @RequestBody TaxasMaquininhaRequest request) {
-        return ResponseEntity.ok(configuracaoService.atualizarTaxasMaquininha(restauranteId, request));
+            @RequestBody FreteConfigRequest request) {
+        return ResponseEntity.ok(configuracaoService.atualizarFrete(restauranteId, request));
     }
 
     @PutMapping("/status-loja")

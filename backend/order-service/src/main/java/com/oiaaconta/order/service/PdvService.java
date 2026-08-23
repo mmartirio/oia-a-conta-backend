@@ -1,10 +1,12 @@
 package com.oiaaconta.order.service;
 
+import com.oiaaconta.order.dto.request.AplicarDescontoRequest;
 import com.oiaaconta.order.dto.request.ConfirmarPagamentoRequest;
 import com.oiaaconta.order.dto.request.PedidoRequest;
 import com.oiaaconta.order.dto.request.VendaBalcaoRequest;
 import com.oiaaconta.order.dto.response.ComandaResponse;
 import com.oiaaconta.order.enums.MetodoPagamento;
+import com.oiaaconta.order.enums.TipoDescontoOrigem;
 import com.oiaaconta.order.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,10 @@ public class PdvService {
         ComandaResponse comanda = comandaService.abrirComanda(
             restauranteId, -1L, 0, caixaUserId, caixaNome != null ? caixaNome : "PDV Balcão", authHeader);
 
+        if (request.getClienteId() != null) {
+            comandaService.definirCliente(restauranteId, comanda.getId(), request.getClienteId());
+        }
+
         PedidoRequest pedidoRequest = new PedidoRequest();
         pedidoRequest.setObservacao(request.getObservacao());
         pedidoRequest.setCozinha(true);
@@ -45,11 +51,23 @@ public class PdvService {
                 itemRequest.setQuantidade(item.getQuantidade());
                 itemRequest.setPrecoUnitario(item.getPrecoUnitario());
                 itemRequest.setObservacao(item.getObservacao());
+                itemRequest.setComboId(item.getComboId());
+                itemRequest.setComboQuantidade(item.getComboQuantidade());
                 return itemRequest;
             })
             .toList());
 
-        pedidoService.enviarParaCozinha(restauranteId, comanda.getId(), pedidoRequest);
+        // Baixa/verifica estoque (bloqueia a venda se insuficiente) e expande
+        // combos — feito dentro de enviarParaCozinha, único ponto de criação
+        // de ItemPedido compartilhado com o fluxo de comanda de mesa.
+        pedidoService.enviarParaCozinha(restauranteId, comanda.getId(), pedidoRequest, authHeader);
+
+        if (request.getCupomCodigo() != null && !request.getCupomCodigo().isBlank()) {
+            AplicarDescontoRequest descontoRequest = new AplicarDescontoRequest();
+            descontoRequest.setTipo(TipoDescontoOrigem.CUPOM);
+            descontoRequest.setCodigo(request.getCupomCodigo());
+            comandaService.aplicarDesconto(restauranteId, comanda.getId(), descontoRequest, authHeader);
+        }
 
         comandaService.fecharComanda(restauranteId, comanda.getId(), authHeader);
 
@@ -64,26 +82,10 @@ public class PdvService {
         confirmarPagamentoRequest.setMetodoPagamento(metodoPagamento);
         confirmarPagamentoRequest.setParcelas(request.getParcelas());
 
-        ComandaResponse response = comandaService.confirmarPagamento(
-            restauranteId, comanda.getId(), confirmarPagamentoRequest, authHeader);
-
-        // O "pedidos"/"total" de response costuma voltar vazio/zerado aqui:
-        // dentro desta mesma transação, ComandaService.abrirComanda já
-        // inicializou a coleção "pedidos" da comanda (ainda vazia, via seu
-        // próprio toResponse) e o Hibernate não a recarrega sozinho depois
-        // que o pedido é inserido — a linha no banco fica correta (outras
-        // consultas, ex. resumo-dia, já a enxergam certo), só o corpo desta
-        // resposta específica que fica desatualizado. Recalcula aqui a
-        // partir do request em vez de mexer na entidade JPA (uma tentativa
-        // anterior de sincronizar a coleção em memória disparava
-        // UnsupportedOperationException do Hibernate ao mesclar a comanda
-        // de volta em fecharComanda/confirmarPagamento).
-        java.math.BigDecimal total = request.getItens().stream()
-            .map(item -> (item.getPrecoUnitario() != null ? item.getPrecoUnitario() : java.math.BigDecimal.ZERO)
-                .multiply(java.math.BigDecimal.valueOf(item.getQuantidade())))
-            .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
-        response.setTotal(total);
-
-        return response;
+        // confirmarPagamento recarrega a comanda com pedidos+itens numa query
+        // própria (findWithPedidosEItensByIdAndRestauranteId), então o
+        // subtotal/total do response já vem correto — sem precisar
+        // reconstruir o total a partir do request aqui.
+        return comandaService.confirmarPagamento(restauranteId, comanda.getId(), confirmarPagamentoRequest, authHeader);
     }
 }

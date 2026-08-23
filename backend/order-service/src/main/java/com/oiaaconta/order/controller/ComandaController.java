@@ -1,5 +1,6 @@
 package com.oiaaconta.order.controller;
 
+import com.oiaaconta.order.dto.request.AplicarDescontoRequest;
 import com.oiaaconta.order.dto.request.ConfirmarPagamentoRequest;
 import com.oiaaconta.order.dto.response.ComandaResponse;
 import com.oiaaconta.order.service.ComandaService;
@@ -77,5 +78,32 @@ public class ComandaController {
             @PathVariable Long id,
             @Valid @RequestBody ConfirmarPagamentoRequest request) {
         return ResponseEntity.ok(comandaService.confirmarPagamento(restauranteId, id, request, authHeader));
+    }
+
+    @PutMapping("/api/comandas/{id}/cliente")
+    @PreAuthorize("hasAnyRole('GARCON','CAIXA','ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<ComandaResponse> definirCliente(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @PathVariable Long id,
+            @RequestParam Long clienteId) {
+        return ResponseEntity.ok(comandaService.definirCliente(restauranteId, id, clienteId));
+    }
+
+    @PutMapping("/api/comandas/{id}/desconto")
+    @PreAuthorize("hasAnyRole('GARCON','CAIXA','ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<ComandaResponse> aplicarDesconto(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable Long id,
+            @Valid @RequestBody AplicarDescontoRequest request) {
+        return ResponseEntity.ok(comandaService.aplicarDesconto(restauranteId, id, request, authHeader));
+    }
+
+    @DeleteMapping("/api/comandas/{id}/desconto")
+    @PreAuthorize("hasAnyRole('GARCON','CAIXA','ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<ComandaResponse> removerDesconto(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(comandaService.removerDesconto(restauranteId, id));
     }
 }

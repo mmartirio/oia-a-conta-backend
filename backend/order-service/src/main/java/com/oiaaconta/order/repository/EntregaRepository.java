@@ -22,8 +22,10 @@ public interface EntregaRepository extends JpaRepository<Entrega, Long> {
 
     Optional<Entrega> findByIdAndRestauranteId(Long id, Long restauranteId);
 
+    // Ascendente por entregueAt — ordem de chegada na fila do caixa (mais
+    // antiga primeiro), não por criação do pedido.
     @EntityGraph(attributePaths = "itens")
-    Page<Entrega> findByRestauranteIdAndStatusAndPagamentoConfirmadoCaixaOrderByCreatedAtDesc(
+    Page<Entrega> findByRestauranteIdAndStatusAndPagamentoConfirmadoCaixaOrderByEntregueAtAsc(
         Long restauranteId, StatusEntrega status, Boolean pagamentoConfirmadoCaixa, Pageable pageable);
 
     @EntityGraph(attributePaths = "itens")
@@ -32,4 +34,14 @@ public interface EntregaRepository extends JpaRepository<Entrega, Long> {
 
     @EntityGraph(attributePaths = "itens")
     List<Entrega> findByRestauranteIdAndStatus(Long restauranteId, StatusEntrega status);
+
+    // Entregas ativas de um entregador específico — usada pra sugestão de
+    // rota (RotaService). Não precisa do EntityGraph de "itens": só usamos
+    // endereço/coordenadas/status aqui, não os itens do pedido.
+    List<Entrega> findByRestauranteIdAndEntregadorIdAndStatusIn(
+        Long restauranteId, Long entregadorId, List<StatusEntrega> statuses);
+
+    // Evita duplicar a Entrega se o mesmo evento de pedido do iFood for
+    // reentregue no polling antes do acknowledgment ser confirmado.
+    Optional<Entrega> findByRestauranteIdAndIfoodOrderId(Long restauranteId, String ifoodOrderId);
 }

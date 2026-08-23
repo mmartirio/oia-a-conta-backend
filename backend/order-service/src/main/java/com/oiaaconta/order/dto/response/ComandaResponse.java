@@ -19,8 +19,15 @@ public class ComandaResponse {
     private String status;
     private String metodoPagamento;
     private Integer parcelas;
+    // subtotal = soma dos itens, sem desconto; total = subtotal - desconto (valor a pagar).
+    private BigDecimal subtotal;
+    private BigDecimal desconto;
     private BigDecimal total;
+    private Long clienteId;
+    private String descontoTipo;
+    private String descontoOrigemDescricao;
     private List<PedidoResponse> pedidos;
     private LocalDateTime criadoEm;
     private LocalDateTime fechadoEm;
+    private LocalDateTime aguardandoPagamentoEm;
 }

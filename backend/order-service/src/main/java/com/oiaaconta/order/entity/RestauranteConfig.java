@@ -46,17 +46,18 @@ public class RestauranteConfig {
     @Column(name = "alerta_pedido_som", nullable = false, length = 20)
     private String alertaPedidoSom = "SOM_1";
 
-    // Taxas cobradas pela maquininha de cartão — usadas só como referência
-    // no caixa (não alteram o valor cobrado do cliente).
+    // Quando true, mensagem nova do WhatsApp toca a notificação falada em vez
+    // da padrão (ver NotificationContext no frontend).
     @Builder.Default
-    @Column(name = "taxa_debito", precision = 5, scale = 2)
-    private BigDecimal taxaDebito = BigDecimal.ZERO;
+    @Column(name = "notificacao_whatsapp_falada", nullable = false)
+    private boolean notificacaoWhatsappFalada = false;
+
+    // Frete = freteTaxaBase + freteValorPorKm * distância até o cliente.
+    @Builder.Default
+    @Column(name = "frete_taxa_base", precision = 10, scale = 2)
+    private BigDecimal freteTaxaBase = BigDecimal.ZERO;
 
     @Builder.Default
-    @Column(name = "taxa_credito_vista", precision = 5, scale = 2)
-    private BigDecimal taxaCreditoVista = BigDecimal.ZERO;
-
-    @Builder.Default
-    @Column(name = "taxa_credito_parcelado", precision = 5, scale = 2)
-    private BigDecimal taxaCreditoParcelado = BigDecimal.ZERO;
+    @Column(name = "frete_valor_por_km", precision = 10, scale = 2)
+    private BigDecimal freteValorPorKm = BigDecimal.ZERO;
 }

@@ -32,6 +32,11 @@ public class JwtUtil {
         return (String) extractClaims(token).get("nome");
     }
 
+    public Long extractRestauranteId(String token) {
+        Object val = extractClaims(token).get("restauranteId");
+        return val != null ? Long.valueOf(val.toString()) : null;
+    }
+
     public String extractRole(String token) {
         return (String) extractClaims(token).get("role");
     }

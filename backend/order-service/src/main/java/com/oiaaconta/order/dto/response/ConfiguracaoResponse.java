@@ -16,7 +16,7 @@ public class ConfiguracaoResponse {
     private boolean fechadoManualmente;
     private String motivoFechamentoManual;
     private String alertaPedidoSom;
-    private BigDecimal taxaDebito;
-    private BigDecimal taxaCreditoVista;
-    private BigDecimal taxaCreditoParcelado;
+    private boolean notificacaoWhatsappFalada;
+    private BigDecimal freteTaxaBase;
+    private BigDecimal freteValorPorKm;
 }

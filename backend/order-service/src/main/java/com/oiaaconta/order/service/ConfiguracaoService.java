@@ -1,8 +1,8 @@
 package com.oiaaconta.order.service;
 
 import com.oiaaconta.order.dto.request.ConfiguracaoRequest;
+import com.oiaaconta.order.dto.request.FreteConfigRequest;
 import com.oiaaconta.order.dto.request.StatusLojaRequest;
-import com.oiaaconta.order.dto.request.TaxasMaquininhaRequest;
 import com.oiaaconta.order.dto.response.ConfiguracaoResponse;
 import com.oiaaconta.order.entity.RestauranteConfig;
 import com.oiaaconta.order.repository.RestauranteConfigRepository;
@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 public class ConfiguracaoService {
 
     private final RestauranteConfigRepository configRepository;
+    private final AuditoriaService auditoriaService;
 
     public ConfiguracaoResponse get(Long restauranteId) {
         return configRepository.findByRestauranteId(restauranteId)
@@ -44,8 +45,12 @@ public class ConfiguracaoService {
         if (request.getComissaoEntregador() != null) config.setComissaoEntregador(request.getComissaoEntregador());
         if (request.getComissaoCozinheiro() != null) config.setComissaoCozinheiro(request.getComissaoCozinheiro());
         if (request.getAlertaPedidoSom() != null) config.setAlertaPedidoSom(request.getAlertaPedidoSom());
+        if (request.getNotificacaoWhatsappFalada() != null) config.setNotificacaoWhatsappFalada(request.getNotificacaoWhatsappFalada());
 
-        return toResponse(configRepository.save(config));
+        ConfiguracaoResponse response = toResponse(configRepository.save(config));
+        auditoriaService.registrar(restauranteId, "CONFIGURACAO_ALTERADA",
+            "Configurações de PIX/comissões/alerta atualizadas", null, null);
+        return response;
     }
 
     @Transactional
@@ -57,18 +62,22 @@ public class ConfiguracaoService {
         config.setFechadoManualmente(Boolean.TRUE.equals(request.getFechado()));
         config.setMotivoFechamentoManual(config.isFechadoManualmente() ? request.getMotivo() : null);
 
-        return toResponse(configRepository.save(config));
+        ConfiguracaoResponse response = toResponse(configRepository.save(config));
+        auditoriaService.registrar(restauranteId, "CONFIGURACAO_ALTERADA",
+            config.isFechadoManualmente() ? "Loja fechada manualmente" + (request.getMotivo() != null ? " — " + request.getMotivo() : "")
+                : "Loja reaberta manualmente",
+            null, null);
+        return response;
     }
 
     @Transactional
     @SuppressWarnings("null")
-    public ConfiguracaoResponse atualizarTaxasMaquininha(Long restauranteId, TaxasMaquininhaRequest request) {
+    public ConfiguracaoResponse atualizarFrete(Long restauranteId, FreteConfigRequest request) {
         RestauranteConfig config = configRepository.findByRestauranteId(restauranteId)
             .orElse(RestauranteConfig.builder().restauranteId(restauranteId).build());
 
-        if (request.getTaxaDebito() != null) config.setTaxaDebito(request.getTaxaDebito());
-        if (request.getTaxaCreditoVista() != null) config.setTaxaCreditoVista(request.getTaxaCreditoVista());
-        if (request.getTaxaCreditoParcelado() != null) config.setTaxaCreditoParcelado(request.getTaxaCreditoParcelado());
+        if (request.getFreteTaxaBase() != null) config.setFreteTaxaBase(request.getFreteTaxaBase());
+        if (request.getFreteValorPorKm() != null) config.setFreteValorPorKm(request.getFreteValorPorKm());
 
         return toResponse(configRepository.save(config));
     }
@@ -83,9 +92,9 @@ public class ConfiguracaoService {
             .fechadoManualmente(c.isFechadoManualmente())
             .motivoFechamentoManual(c.getMotivoFechamentoManual())
             .alertaPedidoSom(c.getAlertaPedidoSom() != null ? c.getAlertaPedidoSom() : "SOM_1")
-            .taxaDebito(c.getTaxaDebito() != null ? c.getTaxaDebito() : BigDecimal.ZERO)
-            .taxaCreditoVista(c.getTaxaCreditoVista() != null ? c.getTaxaCreditoVista() : BigDecimal.ZERO)
-            .taxaCreditoParcelado(c.getTaxaCreditoParcelado() != null ? c.getTaxaCreditoParcelado() : BigDecimal.ZERO)
+            .notificacaoWhatsappFalada(c.isNotificacaoWhatsappFalada())
+            .freteTaxaBase(c.getFreteTaxaBase() != null ? c.getFreteTaxaBase() : BigDecimal.ZERO)
+            .freteValorPorKm(c.getFreteValorPorKm() != null ? c.getFreteValorPorKm() : BigDecimal.ZERO)
             .build();
     }
 }

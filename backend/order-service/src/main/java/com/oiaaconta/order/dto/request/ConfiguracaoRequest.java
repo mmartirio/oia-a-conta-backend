@@ -11,4 +11,5 @@ public class ConfiguracaoRequest {
     private BigDecimal comissaoEntregador;
     private BigDecimal comissaoCozinheiro;
     private String alertaPedidoSom;
+    private Boolean notificacaoWhatsappFalada;
 }

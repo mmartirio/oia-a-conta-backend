@@ -144,6 +144,10 @@ public class FinanceiroService {
     }
 
     @SuppressWarnings("null")
+    // Base de cálculo vem só das vendas (comandas/entregas) — a diferença de
+    // caixa apurada em CaixaService.fechar() nunca deve entrar aqui: quebra de
+    // caixa é risco do negócio, não desconto automático da comissão/salário
+    // de quem fechou o caixa.
     public List<ComissaoResponse> getComissoes(Long restauranteId, LocalDateTime inicio, LocalDateTime fim) {
         var config = configRepository.findByRestauranteId(restauranteId);
         BigDecimal pctGarcon = config.map(c -> c.getComissaoGarcon() != null ? c.getComissaoGarcon() : BigDecimal.ZERO)
@@ -217,12 +221,22 @@ public class FinanceiroService {
         return result;
     }
 
+    // Comandas fechadas depois da introdução de cupom/promoção já têm
+    // valorTotal persistido (subtotal - desconto) em confirmarPagamento — usa
+    // esse snapshot quando existir. Comandas fechadas antes disso (valorTotal
+    // NULL) caem no cálculo antigo a partir dos itens (equivalente, já que
+    // não tinham desconto).
     @SuppressWarnings("null")
     private BigDecimal calcularTotalComanda(Comanda c) {
-        return c.getPedidos().stream()
+        if (c.getValorTotal() != null) {
+            return c.getValorTotal();
+        }
+        BigDecimal subtotal = c.getPedidos().stream()
             .flatMap(p -> p.getItens().stream())
             .map(i -> i.getPrecoUnitario().multiply(BigDecimal.valueOf(i.getQuantidade())))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal desconto = c.getDesconto() != null ? c.getDesconto() : BigDecimal.ZERO;
+        return subtotal.subtract(desconto);
     }
 
     @SuppressWarnings("null")

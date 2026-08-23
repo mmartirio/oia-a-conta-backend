@@ -25,9 +25,18 @@ public class VendaBalcaoRequest {
 
     private String observacao;
 
+    // Cliente identificado na venda (opcional) — habilita cupom individual/de
+    // grupo e promoções automáticas, e alimenta o gasto histórico do cliente.
+    private Long clienteId;
+
+    // Código de cupom informado pelo caixa (opcional) — validado no
+    // catalog-service; se inválido, a venda é rejeitada (não é silenciosamente
+    // ignorado, já que foi uma ação explícita do caixa).
+    private String cupomCodigo;
+
     @Data
     public static class ItemRequest {
-        @NotNull(message = "Produto obrigatório")
+        // Obrigatório sse comboId não for informado.
         private Long produtoId;
 
         private String produtoNome;
@@ -39,5 +48,8 @@ public class VendaBalcaoRequest {
         private BigDecimal precoUnitario;
 
         private String observacao;
+
+        private Long comboId;
+        private Integer comboQuantidade;
     }
 }

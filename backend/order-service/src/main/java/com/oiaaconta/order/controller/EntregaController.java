@@ -1,8 +1,12 @@
 package com.oiaaconta.order.controller;
 
 import com.oiaaconta.order.dto.request.EntregaRequest;
+import com.oiaaconta.order.dto.request.FretePreviewRequest;
 import com.oiaaconta.order.dto.response.EntregaResponse;
+import com.oiaaconta.order.dto.response.RotaSugeridaResponse;
 import com.oiaaconta.order.service.EntregaService;
+import com.oiaaconta.order.service.FreteService;
+import com.oiaaconta.order.service.RotaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -21,6 +25,7 @@ import java.util.List;
 public class EntregaController {
 
     private final EntregaService entregaService;
+    private final RotaService rotaService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('GARCON','ADMIN','SUPER_ADMIN')")
@@ -28,6 +33,15 @@ public class EntregaController {
             @RequestHeader("X-Restaurante-Id") Long restauranteId,
             @Valid @RequestBody EntregaRequest request) {
         return ResponseEntity.status(201).body(entregaService.criar(restauranteId, request));
+    }
+
+    @PostMapping("/frete-preview")
+    @PreAuthorize("hasAnyRole('GARCON','ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<FreteService.FreteCalculado> fretePreview(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @Valid @RequestBody FretePreviewRequest request) {
+        return ResponseEntity.ok(entregaService.calcularFretePreview(
+            restauranteId, request.getEnderecoLatitude(), request.getEnderecoLongitude()));
     }
 
     @GetMapping
@@ -71,14 +85,14 @@ public class EntregaController {
         return ResponseEntity.ok(entregaService.rejeitar(restauranteId, id, body.get("motivo")));
     }
 
-    @PutMapping("/{id}/aceitar")
+    @PutMapping("/{id}/atribuir-entregador")
     @PreAuthorize("hasAnyRole('ENTREGADOR','ADMIN','SUPER_ADMIN')")
-    public ResponseEntity<EntregaResponse> aceitar(
+    public ResponseEntity<EntregaResponse> atribuirEntregador(
             @RequestHeader("X-Restaurante-Id") Long restauranteId,
             @RequestHeader("X-User-Id") Long entregadorId,
             @RequestHeader("X-User-Nome") String entregadorNome,
             @PathVariable Long id) {
-        return ResponseEntity.ok(entregaService.aceitar(restauranteId, id, entregadorId, entregadorNome));
+        return ResponseEntity.ok(entregaService.atribuirEntregador(restauranteId, id, entregadorId, entregadorNome));
     }
 
     @PutMapping("/{id}/pronto")
@@ -93,8 +107,10 @@ public class EntregaController {
     @PreAuthorize("hasAnyRole('ENTREGADOR','ADMIN','SUPER_ADMIN')")
     public ResponseEntity<EntregaResponse> saiu(
             @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-User-Nome") String userNome,
             @PathVariable Long id) {
-        return ResponseEntity.ok(entregaService.saiu(restauranteId, id));
+        return ResponseEntity.ok(entregaService.saiu(restauranteId, id, userId, userNome));
     }
 
     @PutMapping("/{id}/entregue")
@@ -132,6 +148,16 @@ public class EntregaController {
             .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SUPER_ADMIN"));
         entregaService.atualizarLocalizacao(restauranteId, id, usuarioId, isAdmin, body.get("latitude"), body.get("longitude"));
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/minha-rota")
+    @PreAuthorize("hasAnyRole('ENTREGADOR','ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<RotaSugeridaResponse> minhaRota(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @RequestHeader("X-User-Id") Long entregadorId,
+            @RequestParam Double lat,
+            @RequestParam Double lng) {
+        return ResponseEntity.ok(rotaService.sugerir(restauranteId, entregadorId, lat, lng));
     }
 
     @GetMapping("/pendentes-pagamento")

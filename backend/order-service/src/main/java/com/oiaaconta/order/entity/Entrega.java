@@ -99,4 +99,28 @@ public class Entrega {
 
     @Column(name = "localizacao_atualizada_em")
     private LocalDateTime localizacaoAtualizadaEm;
+
+    // Coordenadas do endereço de entrega (geocodificado no frontend ao criar
+    // o pedido) — diferente de latitude/longitude acima, que são a posição
+    // GPS ao vivo do entregador.
+    @Column(name = "endereco_latitude")
+    private Double enderecoLatitude;
+
+    @Column(name = "endereco_longitude")
+    private Double enderecoLongitude;
+
+    @Column(name = "distancia_km", precision = 10, scale = 2)
+    private java.math.BigDecimal distanciaKm;
+
+    @Column(name = "valor_frete", precision = 10, scale = 2)
+    private java.math.BigDecimal valorFrete;
+
+    @Builder.Default
+    @Column(name = "origem_ifood", nullable = false)
+    private Boolean origemIfood = false;
+
+    // Correlaciona com o pedido no iFood — necessário pra avançar o status
+    // (confirmar/pronto/saiu/entregue) de volta pra lá.
+    @Column(name = "ifood_order_id", length = 100)
+    private String ifoodOrderId;
 }

@@ -14,4 +14,6 @@ public class ItemEntregaResponse {
     private Integer quantidade;
     private BigDecimal precoUnitario;
     private String observacao;
+    private Long comboId;
+    private String comboNome;
 }

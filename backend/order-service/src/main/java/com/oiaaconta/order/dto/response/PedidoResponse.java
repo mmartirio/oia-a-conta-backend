@@ -12,6 +12,7 @@ public class PedidoResponse {
     private Long id;
     private Long comandaId;
     private Long restauranteId;
+    private Long entregaId;
     private Integer mesaNumero;
     private Long garconId;
     private String garconNome;

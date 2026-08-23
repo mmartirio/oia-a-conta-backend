@@ -22,7 +22,8 @@ public class PedidoRequest {
 
     @Data
     public static class ItemRequest {
-        @NotNull(message = "Produto obrigatório")
+        // Obrigatório sse comboId não for informado — validado em
+        // PedidoService (cada item precisa ser um produto OU um combo).
         private Long produtoId;
 
         @NotNull(message = "Quantidade obrigatória")
@@ -34,5 +35,13 @@ public class PedidoRequest {
         private String produtoNome;
 
         private BigDecimal precoUnitario;
+
+        // Preenchidos quando este item representa um Combo — nesse caso
+        // produtoId/produtoNome/precoUnitario acima são ignorados: o
+        // PedidoService expande o combo em N itens reais buscando a
+        // composição no catalog-service. comboQuantidade = quantas unidades
+        // do combo (default 1).
+        private Long comboId;
+        private Integer comboQuantidade;
     }
 }

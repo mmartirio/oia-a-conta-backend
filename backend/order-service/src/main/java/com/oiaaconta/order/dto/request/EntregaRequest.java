@@ -27,6 +27,12 @@ public class EntregaRequest {
 
     private String enderecoComplemento;
 
+    // Geocodificados no frontend a partir do endereço acima — opcionais: se
+    // vier nulo (endereço não encontrado, API de geocoding fora do ar), o
+    // pedido segue normalmente e só o frete fica sem cálculo.
+    private Double enderecoLatitude;
+    private Double enderecoLongitude;
+
     @NotNull(message = "Método de pagamento obrigatório")
     private MetodoPagamento metodoPagamento;
 
@@ -39,16 +45,28 @@ public class EntregaRequest {
 
     private boolean origemPdv;
 
+    private boolean origemIfood;
+
+    // ID do pedido no iFood — obrigatório sse origemIfood, validado em EntregaService.
+    private String ifoodOrderId;
+
     @NotEmpty(message = "O pedido deve ter pelo menos um item")
     @Valid
     private List<ItemRequest> itens;
 
     @Data
     public static class ItemRequest {
-        @NotNull private Long produtoId;
-        @NotBlank private String produtoNome;
+        // Obrigatório sse comboId não for informado — validado em EntregaService.
+        private Long produtoId;
+        private String produtoNome;
         @NotNull @Min(1) private Integer quantidade;
-        @NotNull private BigDecimal precoUnitario;
+        private BigDecimal precoUnitario;
         private String observacao;
+
+        // Preenchidos quando este item representa um Combo — nesse caso
+        // produtoId/produtoNome/precoUnitario são ignorados: EntregaService
+        // expande o combo em itens reais buscando a composição no catalog-service.
+        private Long comboId;
+        private Integer comboQuantidade;
     }
 }

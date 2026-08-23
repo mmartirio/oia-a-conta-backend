@@ -21,8 +21,10 @@ public class Pedido {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Nulo para pedidos de delivery — comanda é exclusiva do fluxo de
+    // garçom/mesa (ver DeliveryOrchestrationService.criarPedidoCozinha).
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "comanda_id", nullable = false)
+    @JoinColumn(name = "comanda_id", nullable = true)
     private Comanda comanda;
 
     @Column(name = "restaurante_id", nullable = false)

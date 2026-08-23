@@ -15,4 +15,6 @@ public class ItemPedidoResponse {
     private String observacao;
     private BigDecimal precoUnitario;
     private BigDecimal subtotal;
+    private Long comboId;
+    private String comboNome;
 }
