@@ -7,6 +7,7 @@ import com.oiaaconta.catalog.exception.BusinessException;
 import com.oiaaconta.catalog.exception.ResourceNotFoundException;
 import com.oiaaconta.catalog.repository.CategoriaRepository;
 import com.oiaaconta.catalog.repository.ProdutoRepository;
+import com.oiaaconta.catalog.util.ImagemValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -23,9 +24,11 @@ public class ProdutoService {
     private final ProdutoRepository produtoRepository;
     private final CategoriaRepository categoriaRepository;
 
-    public List<ProdutoResponse> listar(Long restauranteId) {
-        return produtoRepository.findByRestauranteIdAndAtivoTrueOrderByNomeAsc(restauranteId)
-            .stream().map(p -> toResponse(p, restauranteId)).toList();
+    public List<ProdutoResponse> listar(Long restauranteId, boolean incluirInativos) {
+        List<Produto> produtos = incluirInativos
+            ? produtoRepository.findByRestauranteIdOrderByNomeAsc(restauranteId)
+            : produtoRepository.findByRestauranteIdAndAtivoTrueOrderByNomeAsc(restauranteId);
+        return produtos.stream().map(p -> toResponse(p, restauranteId)).toList();
     }
 
     public List<ProdutoResponse> listarPorCategoria(Long restauranteId, Long categoriaId) {
@@ -46,6 +49,7 @@ public class ProdutoService {
             .descricao(request.getDescricao())
             .preco(request.getPreco())
             .imagemBase64(validarImagemOuLimpar(request.getImagemBase64(), null))
+            .numeroCardapio(request.getNumeroCardapio())
             .ativo(true)
             .build());
         return toResponse(produto, restauranteId);
@@ -59,6 +63,7 @@ public class ProdutoService {
         produto.setDescricao(request.getDescricao());
         produto.setPreco(request.getPreco());
         produto.setCategoriaId(request.getCategoriaId());
+        produto.setNumeroCardapio(request.getNumeroCardapio());
         // null = campo ausente, não mexe na imagem atual; "" explícito = remove a imagem.
         produto.setImagemBase64(validarImagemOuLimpar(request.getImagemBase64(), produto.getImagemBase64()));
         return toResponse(produtoRepository.save(produto), restauranteId);
@@ -66,10 +71,15 @@ public class ProdutoService {
 
     @CacheEvict(value = "cardapio-publico", key = "#restauranteId")
     public void desativar(Long restauranteId, Long id) {
+        alterarAtivo(restauranteId, id, false);
+    }
+
+    @CacheEvict(value = "cardapio-publico", key = "#restauranteId")
+    public ProdutoResponse alterarAtivo(Long restauranteId, Long id, boolean ativo) {
         Produto produto = produtoRepository.findByIdAndRestauranteId(id, restauranteId)
             .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado"));
-        produto.setAtivo(false);
-        produtoRepository.save(produto);
+        produto.setAtivo(ativo);
+        return toResponse(produtoRepository.save(produto), restauranteId);
     }
 
     private ProdutoResponse toResponse(Produto p, Long restauranteId) {
@@ -80,16 +90,29 @@ public class ProdutoService {
             .categoriaId(p.getCategoriaId()).categoriaNome(categoriaNome)
             .nome(p.getNome()).descricao(p.getDescricao())
             .preco(p.getPreco()).imagemBase64(p.getImagemBase64())
+            .numeroCardapio(p.getNumeroCardapio())
             .ativo(p.isAtivo()).build();
+    }
+
+    // Cardápio numerado (chatbot WhatsApp) — não passa por toResponse porque é
+    // consumido por whatsapp-service via um DTO próprio, mais enxuto.
+    public List<com.oiaaconta.catalog.dto.response.ProdutoNumeradoResponse> listarNumerados(Long restauranteId) {
+        return produtoRepository.findByRestauranteIdAndAtivoTrueAndNumeroCardapioIsNotNullOrderByNumeroCardapioAsc(restauranteId)
+            .stream()
+            .map(p -> com.oiaaconta.catalog.dto.response.ProdutoNumeradoResponse.builder()
+                .numero(p.getNumeroCardapio())
+                .produtoId(p.getId())
+                .nome(p.getNome())
+                .preco(p.getPreco())
+                .build())
+            .toList();
     }
 
     // null = não altera (mantém a imagem atual); "" explícito = remove; caso contrário valida e usa a nova.
     private String validarImagemOuLimpar(String novaImagem, String imagemAtual) {
         if (novaImagem == null) return imagemAtual;
         if (novaImagem.isBlank()) return null;
-        if (!novaImagem.startsWith("data:image/")) {
-            throw new BusinessException("Arquivo inválido. Envie uma imagem (PNG, JPG ou WEBP).");
-        }
+        ImagemValidator.validar(novaImagem);
         if (novaImagem.length() > IMAGEM_MAX_CHARS) {
             throw new BusinessException("Imagem muito grande. Envie um arquivo menor (até ~1MB).");
         }

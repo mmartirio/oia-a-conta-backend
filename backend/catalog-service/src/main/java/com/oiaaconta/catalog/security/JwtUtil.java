@@ -29,6 +29,15 @@ public class JwtUtil {
         return value != null ? Long.valueOf(value.toString()) : null;
     }
 
+    public Long extractUserId(String token) {
+        Object value = extractClaims(token).get("userId");
+        return value != null ? Long.valueOf(value.toString()) : null;
+    }
+
+    public String extractNome(String token) {
+        return (String) extractClaims(token).get("nome");
+    }
+
     public String extractRole(String token) {
         return (String) extractClaims(token).get("role");
     }

@@ -10,4 +10,5 @@ public class CategoriaResponse {
     private Long restauranteId;
     private String nome;
     private boolean ativo;
+    private Integer ordem;
 }

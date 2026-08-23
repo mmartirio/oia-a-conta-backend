@@ -1,5 +1,6 @@
 package com.oiaaconta.catalog.controller;
 
+import com.oiaaconta.catalog.dto.request.AtivoRequest;
 import com.oiaaconta.catalog.dto.request.ProdutoRequest;
 import com.oiaaconta.catalog.dto.response.ProdutoResponse;
 import com.oiaaconta.catalog.service.ProdutoService;
@@ -21,11 +22,12 @@ public class ProdutoController {
     @GetMapping
     public ResponseEntity<List<ProdutoResponse>> listar(
             @RequestHeader("X-Restaurante-Id") Long restauranteId,
-            @RequestParam(required = false) Long categoriaId) {
+            @RequestParam(required = false) Long categoriaId,
+            @RequestParam(required = false, defaultValue = "false") boolean incluirInativos) {
         if (categoriaId != null) {
             return ResponseEntity.ok(produtoService.listarPorCategoria(restauranteId, categoriaId));
         }
-        return ResponseEntity.ok(produtoService.listar(restauranteId));
+        return ResponseEntity.ok(produtoService.listar(restauranteId, incluirInativos));
     }
 
     @PostMapping
@@ -52,5 +54,14 @@ public class ProdutoController {
             @PathVariable Long id) {
         produtoService.desativar(restauranteId, id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/ativo")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<ProdutoResponse> alterarAtivo(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @PathVariable Long id,
+            @Valid @RequestBody AtivoRequest request) {
+        return ResponseEntity.ok(produtoService.alterarAtivo(restauranteId, id, request.getAtivo()));
     }
 }

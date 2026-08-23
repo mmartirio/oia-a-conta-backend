@@ -24,4 +24,8 @@ public class ProdutoRequest {
     // Foto ilustrativa: data URI completa (ex: "data:image/png;base64,...").
     // null = não alterar (update) / sem foto (create); "" explícito = remover a foto atual.
     private String imagemBase64;
+
+    // Número desse produto na imagem do cardápio numerado (chatbot WhatsApp) —
+    // opcional, null = produto não aparece nessa imagem.
+    private Integer numeroCardapio;
 }

@@ -38,6 +38,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 : List.of(new SimpleGrantedAuthority("ROLE_" + jwtUtil.extractRole(token)));
             var authToken = new UsernamePasswordAuthenticationToken(email, null, authorities);
             SecurityContextHolder.getContext().setAuthentication(authToken);
+
+            // Blinda contra header forjado: os controllers leem X-User-Id/
+            // X-Restaurante-Id/X-User-Role diretamente — sem isso, um JWT válido
+            // de QUALQUER usuário bastaria pra passar por esses headers com
+            // valores forjados e agir como outro usuário/tenant.
+            String roleHeader = !permissoes.isEmpty()
+                ? String.join(",", PermissaoRoles.derivar(permissoes))
+                : jwtUtil.extractRole(token);
+            request = new IdentidadeVerificadaRequest(request, jwtUtil.extractUserId(token),
+                jwtUtil.extractRestauranteId(token), jwtUtil.extractNome(token), roleHeader);
         }
         chain.doFilter(request, response);
     }

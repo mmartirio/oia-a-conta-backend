@@ -23,4 +23,8 @@ public class Categoria {
 
     @Builder.Default
     private boolean ativo = true;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Integer ordem = 0;
 }

@@ -36,6 +36,13 @@ public class Produto {
     @Column(name = "imagem_base64", columnDefinition = "TEXT")
     private String imagemBase64;
 
+    // Número desse produto na imagem do cardápio numerado que o admin desenha
+    // pra enviar no chatbot do WhatsApp — nulo pra produtos que não aparecem
+    // nessa imagem. Não tem relação com a ordem de exibição do cardápio
+    // público (essa é só por categoria.ordem).
+    @Column(name = "numero_cardapio")
+    private Integer numeroCardapio;
+
     @Builder.Default
     private boolean ativo = true;
 }

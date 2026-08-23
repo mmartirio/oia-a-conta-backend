@@ -16,5 +16,6 @@ public class ProdutoResponse {
     private String descricao;
     private BigDecimal preco;
     private String imagemBase64;
+    private Integer numeroCardapio;
     private boolean ativo;
 }
