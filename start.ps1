@@ -2,16 +2,18 @@
 <#
 .SYNOPSIS
   Inicializa o projeto Oia a Conta.
-  Sempre para os containers que estiverem rodando e reinicializa o projeto inteiro do zero.
+  Para os containers que estiverem rodando e reinicializa o projeto, preservando
+  os dados do PostgreSQL por padrao.
 .DESCRIPTION
-  Uso: .\start.ps1 [-KeepData] [-NoBuild] [-Force]
+  Uso: .\start.ps1 [-Reset] [-NoBuild] [-Force]
 
-  -KeepData   Mantem o volume do PostgreSQL (nao apaga os dados)
+  -Reset      Apaga o volume do PostgreSQL (reinicializa o banco do zero) -
+              use com cuidado, isso apaga todos os dados permanentemente.
   -NoBuild    Sobe os containers sem rebuildar as imagens
   -Force      Forca rebuild completo (sem cache) das imagens
 #>
 param(
-    [switch]$KeepData,
+    [switch]$Reset,
     [switch]$NoBuild,
     [switch]$Force
 )
@@ -129,12 +131,12 @@ if ($runningContainers.Count -gt 0) {
 Invoke-Compose down --remove-orphans 2>&1 | Out-Null
 Write-Ok "Containers parados"
 
-if ($KeepData) {
-    Write-Warn "-KeepData ativo: volume do PostgreSQL preservado"
-} else {
-    Write-Step "Removendo volumes"
+if ($Reset) {
+    Write-Step "Removendo volumes (-Reset ativo)"
     Invoke-Compose down --volumes 2>&1 | Out-Null
     Write-Ok "Volumes removidos"
+} else {
+    Write-Ok "Volume do PostgreSQL preservado (use -Reset para apagar os dados)"
 }
 
 if ($Force) {
@@ -183,19 +185,49 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Garante os bancos necessarios caso o volume ja existisse sem eles
+# (ex: primeira inicializacao num volume novo - o Postgres so cria sozinho
+# o banco do POSTGRES_DB (db_auth); os outros vem do init-db.sql, que so
+# roda automaticamente numa inicializacao "a frio" do volume).
+Write-Step "Aguardando PostgreSQL ficar pronto"
+
+$pgReady = $false
+$elapsed = 0
+while ($elapsed -lt 60) {
+    $status = docker inspect --format='{{.State.Health.Status}}' oia-postgres 2>$null
+    if ($status -eq "healthy") { $pgReady = $true; break }
+    Start-Sleep -Seconds 3
+    $elapsed += 3
+}
+
+if (-not $pgReady) {
+    Write-Fatal "PostgreSQL nao ficou pronto em 60s. Verifique: docker compose logs postgres"
+}
+Write-Ok "PostgreSQL pronto"
+
 Write-Step "Verificando bancos de dados"
-Start-Sleep -Seconds 5
 
 $requiredDbs = @('db_catalog', 'db_table', 'db_order', 'db_billing', 'db_whatsapp', 'db_evolution')
+$dbFalhou = $false
 foreach ($db in $requiredDbs) {
     $exists = docker exec oia-postgres psql -U oiaconta -d db_auth -tAc "SELECT 1 FROM pg_database WHERE datname='$db'" 2>$null
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($exists)) {
         docker exec oia-postgres psql -U oiaconta -d db_auth -c "CREATE DATABASE $db;" 2>&1 | Out-Null
+        $criado = ($LASTEXITCODE -eq 0)
         docker exec oia-postgres psql -U oiaconta -d db_auth -c "GRANT ALL PRIVILEGES ON DATABASE $db TO oiaconta;" 2>&1 | Out-Null
-        Write-Ok "$db criado"
+
+        if ($criado) {
+            Write-Ok "$db criado"
+        } else {
+            Write-Warn "Falha ao criar $db - verifique: docker compose logs postgres"
+            $dbFalhou = $true
+        }
     } else {
         Write-Ok "$db OK"
     }
+}
+
+if ($dbFalhou) {
+    Write-Fatal "Um ou mais bancos nao puderam ser criados. Corrija e rode o script novamente."
 }
 
 # Os servicos abaixo podem ter subido antes dos bancos serem criados e

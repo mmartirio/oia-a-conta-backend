@@ -5,6 +5,7 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  ollama_data:
 
 services:
 
@@ -16,12 +17,14 @@ services:
     container_name: oia-postgres
     environment:
       POSTGRES_USER: oiaconta
-      POSTGRES_PASSWORD: oiaconta123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: db_auth
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    # Sem porta pro host de propósito — só alcançável pelos serviços dentro da
+    # rede oia-net. Pra inspecionar o banco localmente use `docker exec -it
+    # oia-postgres psql -U oiaconta -d <schema>`.
     networks:
       - oia-net
     healthcheck:
@@ -36,8 +39,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: oia-redis
-    ports:
-      - "6380:6379"
+    # Sem porta pro host — redis roda sem senha, só deve ser alcançável dentro
+    # da rede interna.
     networks:
       - oia-net
     healthcheck:
@@ -45,6 +48,25 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ─────────────────────────────────────────────
+  # OSRM — roteamento real por ruas, usado pro cálculo de frete por km e pra
+  # sugestão de rota do entregador. Precisa dos dados pré-processados em
+  # ./osrm-data — rode infra/osrm/prepare-data.ps1 (ou .sh) uma vez antes de
+  # subir este serviço. Não é dependência obrigatória de nenhum outro serviço:
+  # o order-service cai pra uma estimativa por linha reta se o OSRM estiver
+  # fora do ar ou os dados ainda não tiverem sido preparados.
+  # ─────────────────────────────────────────────
+  osrm:
+    image: osrm/osrm-backend
+    container_name: oia-osrm
+    profiles: ["osrm"]
+    command: osrm-routed --algorithm mld --max-table-size 100 /data/brazil-latest.osrm
+    volumes:
+      - ./osrm-data:/data
+    networks:
+      - oia-net
+    restart: unless-stopped
 
   # ─────────────────────────────────────────────
   # Eureka Discovery Server
@@ -56,8 +78,9 @@ services:
     container_name: oia-discovery
     environment:
       TZ: America/Sao_Paulo
-    ports:
-      - "8761:8761"
+    # Sem porta pro host — o dashboard do Eureka não tem autenticação, fica só
+    # acessível dentro da rede interna. Pra inspecionar localmente, use
+    # `docker port oia-discovery` + túnel, ou reabra a porta temporariamente.
     networks:
       - oia-net
     healthcheck:
@@ -78,14 +101,16 @@ services:
       TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_auth
       SPRING_DATASOURCE_USERNAME: oiaconta
-      SPRING_DATASOURCE_PASSWORD: oiaconta123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
       JWT_EXPIRATION: 86400000
       GMAIL_USERNAME: ${GMAIL_USERNAME:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
-    ports:
-      - "8081:8081"
+      # Mesmo Client ID OAuth do frontend (VITE_GOOGLE_CLIENT_ID) — usado pra
+      # validar o "audience" do ID token no login social.
+      GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+    # Sem porta pro host — só alcançável via api-gateway.
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,13 +136,12 @@ services:
       TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_catalog
       SPRING_DATASOURCE_USERNAME: oiaconta
-      SPRING_DATASOURCE_PASSWORD: oiaconta123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
-    ports:
-      - "8082:8082"
+    # Sem porta pro host — só alcançável via api-gateway.
     depends_on:
       postgres:
         condition: service_healthy
@@ -145,11 +169,10 @@ services:
       TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_table
       SPRING_DATASOURCE_USERNAME: oiaconta
-      SPRING_DATASOURCE_PASSWORD: oiaconta123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
-    ports:
-      - "8083:8083"
+    # Sem porta pro host — só alcançável via api-gateway.
     depends_on:
       postgres:
         condition: service_healthy
@@ -175,8 +198,7 @@ services:
       TZ: America/Sao_Paulo
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
-    ports:
-      - "8085:8085"
+    # Sem porta pro host — só alcançável via api-gateway.
     depends_on:
       discovery-service:
         condition: service_healthy
@@ -200,11 +222,18 @@ services:
       TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_order
       SPRING_DATASOURCE_USERNAME: oiaconta
-      SPRING_DATASOURCE_PASSWORD: oiaconta123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
-    ports:
-      - "8084:8084"
+      # O OSRM local (serviço "osrm" abaixo, atrás do profile "osrm") precisa
+      # dos dados processados via infra/osrm/prepare-data.ps1 antes de subir
+      # (extract/partition/customize sobre o .osm.pbf — pode levar horas pro
+      # Brasil inteiro) e hoje não está rodando. Enquanto isso, usa o servidor
+      # público de demonstração do próprio projeto OSRM (gratuito, sem chave,
+      # mas é "light usage" — não tem SLA/garantia de disponibilidade; pra
+      # produção de verdade, processar uma região menor localmente é melhor).
+      OSRM_URL: ${OSRM_URL:-https://router.project-osrm.org}
+    # Sem porta pro host — só alcançável via api-gateway.
     depends_on:
       postgres:
         condition: service_healthy
@@ -234,7 +263,7 @@ services:
       TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_whatsapp
       SPRING_DATASOURCE_USERNAME: oiaconta
-      SPRING_DATASOURCE_PASSWORD: oiaconta123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
       EVOLUTION_API_URL: http://evolution-api:8080
@@ -243,8 +272,9 @@ services:
       EVOLUTION_WEBHOOK_URL: ${EVOLUTION_WEBHOOK_URL:-http://whatsapp-service:8086/webhook/evolution}
       EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_WEBHOOK_SECRET:-}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost}
-    ports:
-      - "8086:8086"
+      OLLAMA_API_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b-instruct}
+    # Sem porta pro host — só alcançável via api-gateway.
     depends_on:
       postgres:
         condition: service_healthy
@@ -254,6 +284,73 @@ services:
       - oia-net
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8086/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+  # ─────────────────────────────────────────────
+  # Ollama — IA local gratuita/open-source pro chatbot do WhatsApp interpretar
+  # pedidos em texto livre (nome de produto, endereço e forma de pagamento
+  # misturados numa mensagem só). Primeira subida baixa o modelo (~1GB pro
+  # 1.5b, poucos minutos) e fica em cache no volume ollama_data. qwen2.5:1.5b
+  # é o default por rodar rápido mesmo com a máquina sob carga (testado: o 7b
+  # e até o 3b passaram de 90s por mensagem numa máquina com só ~5.6GB de RAM
+  # pro Docker Desktop e outros containers concorrendo por CPU) — com
+  # mais RAM/CPU livres, dá pra trocar OLLAMA_MODEL pra qwen2.5:3b-instruct ou
+  # 7b-instruct no .env pra ganhar precisão na extração.
+  # ─────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: oia-ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "ollama serve &
+      sleep 5 &&
+      ollama pull ${OLLAMA_MODEL:-qwen2.5:1.5b-instruct} &&
+      wait"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - oia-net
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ─────────────────────────────────────────────
+  # iFood Service — recebimento de pedidos, sincronização de cardápio e de
+  # status da loja com o iFood. IFOOD_CLIENT_ID/SECRET são da aplicação
+  # (cadastro único no portal de desenvolvedores do iFood, não por
+  # restaurante) — cada restaurante ainda vincula a própria loja via
+  # /api/ifood/admin/vincular.
+  # ─────────────────────────────────────────────
+  ifood-service:
+    build:
+      context: ./backend/ifood-service
+      dockerfile: Dockerfile
+    container_name: oia-ifood
+    environment:
+      TZ: America/Sao_Paulo
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_ifood
+      SPRING_DATASOURCE_USERNAME: oiaconta
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
+      IFOOD_API_URL: ${IFOOD_API_URL:-https://merchant-api.ifood.com.br}
+      IFOOD_CLIENT_ID: ${IFOOD_CLIENT_ID:-}
+      IFOOD_CLIENT_SECRET: ${IFOOD_CLIENT_SECRET:-}
+    # Sem porta pro host — só alcançável via api-gateway.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - oia-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8089/actuator/health"]
       interval: 15s
       timeout: 5s
       retries: 8
@@ -270,14 +367,13 @@ services:
       TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_billing
       SPRING_DATASOURCE_USERNAME: oiaconta
-      SPRING_DATASOURCE_PASSWORD: oiaconta123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
       MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
       AUTH_SERVICE_URL: http://auth-service:8081
-    ports:
-      - "8088:8088"
+    # Sem porta pro host — só alcançável via api-gateway.
     depends_on:
       postgres:
         condition: service_healthy
@@ -307,7 +403,7 @@ services:
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-oia_evolution_key_2024}
       DATABASE_ENABLED: "true"
       DATABASE_PROVIDER: postgresql
-      DATABASE_CONNECTION_URI: postgresql://oiaconta:oiaconta123@postgres:5432/db_evolution?schema=public
+      DATABASE_CONNECTION_URI: postgresql://oiaconta:${POSTGRES_PASSWORD}@postgres:5432/db_evolution?schema=public
       DATABASE_CONNECTION_CLIENT_NAME: oia-evolution
       DATABASE_SAVE_DATA_INSTANCE: "true"
       DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
@@ -326,8 +422,8 @@ services:
       CONFIG_SESSION_PHONE_CLIENT: "Evolution API"
       CONFIG_SESSION_PHONE_NAME: "Chrome"
       CONFIG_SESSION_PHONE_VERSION: ""
-    ports:
-      - "8087:8080"
+    # Sem porta pro host — só alcançável pelo whatsapp-service, dentro da rede
+    # interna.
     depends_on:
       postgres:
         condition: service_healthy
@@ -377,6 +473,7 @@ services:
         VITE_WS_URL: http://localhost:8090
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
     container_name: oia-frontend
+    restart: unless-stopped
     ports:
       - "80:80"
     depends_on:

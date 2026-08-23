@@ -1,0 +1,26 @@
+services:
+  # ─────────────────────────────────────────────
+  # Frontend em modo dev — Vite com hot reload.
+  # Sobrescreve o serviço "frontend" (build estático + nginx) do
+  # docker-compose.yml por um servidor Vite com o código-fonte montado como
+  # volume, então alterações em estilos/componentes aparecem na hora, sem
+  # rebuildar a imagem.
+  #
+  # Uso: docker compose -f docker-compose.yml -f docker-compose.dev.yml up frontend
+  # ─────────────────────────────────────────────
+  frontend:
+    image: oiaaconta-frontend-dev
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+      args: !override {}
+    ports: !override
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      VITE_DEV_API_PROXY_TARGET: http://api-gateway:8080
+      VITE_DEV_WS_PROXY_TARGET: http://notification-service:8085
+      VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+      CHOKIDAR_USEPOLLING: "true"
