@@ -1,0 +1,65 @@
+server:
+  port: 8089
+
+spring:
+  application:
+    name: ifood-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/db_ifood}
+    username: ${SPRING_DATASOURCE_USERNAME:oiaconta}
+    password: ${SPRING_DATASOURCE_PASSWORD:oiaconta123}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 1
+    baseline-description: "baseline (schema inferido das entidades JPA)"
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+jwt:
+  secret: ${JWT_SECRET:oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
+
+# Credenciais da aplicação cadastrada no portal de desenvolvedores do iFood —
+# uma só pra toda a plataforma (não por restaurante). Cada restaurante ainda
+# precisa passar pelo fluxo de vínculo de loja (ver IfoodAdminController).
+ifood:
+  api-url: ${IFOOD_API_URL:https://merchant-api.ifood.com.br}
+  client-id: ${IFOOD_CLIENT_ID:}
+  client-secret: ${IFOOD_CLIENT_SECRET:}
+  # Intervalo do polling de eventos (novos pedidos) e de sincronização de
+  # status da loja — ver IfoodEventsPoller / IfoodStatusSyncService.
+  events-poll-interval-ms: ${IFOOD_EVENTS_POLL_INTERVAL_MS:30000}
+  status-sync-interval-ms: ${IFOOD_STATUS_SYNC_INTERVAL_MS:120000}
+
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 10000
+      ifood:
+        connectTimeout: 5000
+        readTimeout: 15000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
