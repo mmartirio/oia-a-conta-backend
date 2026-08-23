@@ -32,5 +32,8 @@ Thumbs.db
 # Docker
 *.pid
 
+# OSRM — dados baixados/processados por infra/osrm/prepare-data.ps1 (vários GB)
+osrm-data/
+
 # Test reports
 surefire-reports/
