@@ -30,6 +30,11 @@ public class EmailVerificacao {
     @Builder.Default
     private boolean usado = false;
 
+    // Conta tentativas de código errado — limita brute-force do código de 6
+    // dígitos (ver AuthService.verificarEmail, invalida após MAX_TENTATIVAS).
+    @Builder.Default
+    private int tentativas = 0;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

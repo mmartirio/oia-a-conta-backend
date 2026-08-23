@@ -1,5 +1,6 @@
 package com.oiaaconta.auth.security;
 
+import com.oiaaconta.auth.repository.UsuarioRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,6 +23,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
+    private final UsuarioRepository usuarioRepository;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
@@ -45,6 +47,25 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
             authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authToken);
+
+            // Blinda contra header forjado: os controllers leem X-User-Id/
+            // X-Restaurante-Id/X-User-Role diretamente — sem isso, um JWT válido
+            // de QUALQUER usuário bastaria pra passar por esses headers com
+            // valores forjados e agir como outro usuário/tenant. Usa o próprio
+            // registro do usuário (já revalidado no banco acima, via
+            // loadUserByUsername) como fonte de verdade — mais autoritativo até
+            // que o claim do token, porque reflete o estado atual (ex: grupo
+            // trocado depois do token emitido), não o que valia na emissão.
+            var usuarioOpt = usuarioRepository.findByEmail(email);
+            if (usuarioOpt.isPresent()) {
+                var usuario = usuarioOpt.get();
+                String roleHeader = usuario.getGrupo() != null
+                    ? String.join(",", PermissaoRoles.derivar(usuario.getGrupo().getPermissoes()))
+                    : usuario.getRole().name();
+                Long restauranteId = usuario.getRestaurante() != null ? usuario.getRestaurante().getId() : null;
+                request = new IdentidadeVerificadaRequest(
+                    request, usuario.getId(), restauranteId, usuario.getNome(), roleHeader);
+            }
         }
 
         filterChain.doFilter(request, response);

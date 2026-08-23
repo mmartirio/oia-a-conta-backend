@@ -21,6 +21,9 @@ public final class Permissao {
         "CAIXA_PDV",
         "ENTREGADOR",
         "USUARIOS",
+        "CLIENTES",
+        "ESTOQUE",
+        "MARKETING",
         "FINANCEIRO",
         "WHATSAPP_CONEXAO",
         "WHATSAPP_MENSAGENS",
@@ -36,6 +39,7 @@ public final class Permissao {
         "CONFIG_BACKGROUND",
         "CONFIG_HORARIOS",
         "CONFIG_PAUSAS",
-        "CONFIG_TAXAS_MAQUININHA"
+        "CONFIG_FRETE",
+        "IFOOD_CONEXAO"
     );
 }

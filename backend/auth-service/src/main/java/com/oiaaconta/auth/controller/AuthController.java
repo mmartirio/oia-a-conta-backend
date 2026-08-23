@@ -1,5 +1,6 @@
 package com.oiaaconta.auth.controller;
 
+import com.oiaaconta.auth.dto.request.GoogleLoginRequest;
 import com.oiaaconta.auth.dto.request.LoginRequest;
 import com.oiaaconta.auth.dto.request.RegistroRequest;
 import com.oiaaconta.auth.dto.response.AuthResponse;
@@ -71,10 +72,8 @@ public class AuthController {
     }
 
     @PostMapping("/google")
-    public ResponseEntity<AuthResponse> loginGoogle(@RequestBody Map<String, String> body) {
-        String email = body.get("email");
-        String nome = body.get("nome");
-        return ResponseEntity.ok(authService.loginComGoogle(email, nome));
+    public ResponseEntity<AuthResponse> loginGoogle(@Valid @RequestBody GoogleLoginRequest request) {
+        return ResponseEntity.ok(authService.loginComGoogle(request.getCredential()));
     }
 
     @GetMapping("/me")

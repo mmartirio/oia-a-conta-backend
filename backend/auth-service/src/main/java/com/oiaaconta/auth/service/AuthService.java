@@ -1,5 +1,7 @@
 package com.oiaaconta.auth.service;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.oiaaconta.auth.dto.request.LoginRequest;
 import com.oiaaconta.auth.dto.request.RegistroRequest;
 import com.oiaaconta.auth.dto.response.AuthResponse;
@@ -48,6 +50,9 @@ public class AuthService {
     private final EmailService emailService;
     private final RestTemplate restTemplate;
     private final GrupoService grupoService;
+    private final GoogleIdTokenVerifier googleIdTokenVerifier;
+    private final AuditoriaService auditoriaService;
+    private final LoginAttemptService loginAttemptService;
 
     @Value("${evolution.api.url:http://oia-evolution:8080}")
     private String evolutionUrl;
@@ -61,14 +66,23 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
-        authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(request.getEmail(), request.getSenha())
-        );
+        loginAttemptService.verificarBloqueio(request.getEmail());
+        try {
+            authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getSenha())
+            );
+        } catch (org.springframework.security.core.AuthenticationException e) {
+            loginAttemptService.registrarFalha(request.getEmail());
+            throw e;
+        }
+        loginAttemptService.registrarSucesso(request.getEmail());
         Usuario usuario = usuarioRepository.findByEmail(request.getEmail())
             .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
         if (!usuario.isEmailVerificado()) {
             throw new BusinessException("E-mail não verificado. Verifique sua caixa de entrada.");
         }
+        auditoriaService.registrar(usuario.getRestaurante() != null ? usuario.getRestaurante().getId() : null,
+            "LOGIN", "Login de " + usuario.getEmail(), usuario.getId(), usuario.getNome());
         return buildAuthResponse(usuario);
     }
 
@@ -101,14 +115,33 @@ public class AuthService {
         return Map.of("mensagem", "Código de verificação enviado para " + request.getEmail());
     }
 
-    @Transactional
+    private static final int MAX_TENTATIVAS_CODIGO = 5;
+
+    // noRollbackFor é essencial aqui: sem isso, o rollback automático do
+    // Spring em qualquer RuntimeException desfaria o save() do contador de
+    // tentativas junto com a exceção — o contador nunca persistiria e o
+    // limite de tentativas nunca dispararia de verdade.
+    @Transactional(noRollbackFor = BusinessException.class)
     @SuppressWarnings("null")
     public AuthResponse verificarEmail(String email, String codigo) {
         EmailVerificacao verificacao = emailVerificacaoRepository
             .findTopByEmailAndUsadoFalseOrderByCreatedAtDesc(email)
             .orElseThrow(() -> new BusinessException("Código inválido ou expirado"));
 
-        if (!verificacao.isValido() || !verificacao.getCodigo().equals(codigo)) {
+        if (!verificacao.isValido()) {
+            throw new BusinessException("Código inválido ou expirado");
+        }
+
+        if (!verificacao.getCodigo().equals(codigo)) {
+            verificacao.setTentativas(verificacao.getTentativas() + 1);
+            if (verificacao.getTentativas() >= MAX_TENTATIVAS_CODIGO) {
+                // Invalida de vez — sem isso, o código de 6 dígitos seria
+                // brute-forceável dentro da própria janela de 15 min.
+                verificacao.setUsado(true);
+                emailVerificacaoRepository.save(verificacao);
+                throw new BusinessException("Muitas tentativas incorretas. Solicite um novo código.");
+            }
+            emailVerificacaoRepository.save(verificacao);
             throw new BusinessException("Código inválido ou expirado");
         }
 
@@ -199,6 +232,7 @@ public class AuthService {
         criarInstanciaWhatsapp(restaurante);
         criarContratoBilling(restaurante.getId(), request.getPlanoId());
         grupoService.criarGruposPadrao(restaurante.getId());
+        criarCategoriasPadraoCatalogo(restaurante.getId());
         return buildAuthResponse(admin);
     }
 
@@ -225,41 +259,42 @@ public class AuthService {
 
     // ─── Google ──────────────────────────────────────────────────────────────
 
-    @Transactional
-    @SuppressWarnings("null")
-    public AuthResponse loginComGoogle(String googleEmail, String googleNome) {
-        return usuarioRepository.findByEmail(googleEmail)
-            .map(this::buildAuthResponse)
-            .orElseGet(() -> {
-                String slug = generateSlug(googleNome != null ? googleNome : googleEmail.split("@")[0]);
-                if (restauranteRepository.existsBySlug(slug)) {
-                    slug = slug + "-" + System.currentTimeMillis();
-                }
-                Restaurante restaurante = restauranteRepository.save(
-                    Restaurante.builder()
-                        .nome(googleNome != null ? googleNome + " - Restaurante" : "Meu Restaurante")
-                        .slug(slug)
-                        .emailResponsavel(googleEmail)
-                        .plano("BASICO")
-                        .ativo(true)
-                        .build()
-                );
-                Usuario usuario = usuarioRepository.save(
-                    Usuario.builder()
-                        .restaurante(restaurante)
-                        .nome(googleNome != null ? googleNome : googleEmail.split("@")[0])
-                        .email(googleEmail)
-                        .senha(passwordEncoder.encode(java.util.UUID.randomUUID().toString()))
-                        .role(Role.ADMIN)
-                        .ativo(true)
-                        .emailVerificado(true) // Google já valida o e-mail
-                        .build()
-                );
-                emailService.enviarBoasVindas(googleEmail, usuario.getNome(), restaurante.getNome());
-                criarInstanciaWhatsapp(restaurante);
-                grupoService.criarGruposPadrao(restaurante.getId());
-                return buildAuthResponse(usuario);
-            });
+    // Login social: NÃO cria restaurante/usuário automaticamente. O ID token é
+    // verificado (assinatura + audience) no backend — nunca confia em e-mail/
+    // nome mandado em texto puro pelo cliente. Se o e-mail verificado pelo
+    // Google não tiver cadastro, devolve 404 (ResourceNotFoundException, não
+    // BusinessException) — é o sinal que o frontend usa pra redirecionar
+    // direto pra tela de cadastro em vez de só mostrar um erro genérico.
+    @Transactional(readOnly = true)
+    public AuthResponse loginComGoogle(String idTokenString) {
+        GoogleIdToken idToken;
+        try {
+            idToken = googleIdTokenVerifier.verify(idTokenString);
+        } catch (Exception e) {
+            throw new BusinessException("Não foi possível validar o login com Google. Tente novamente.");
+        }
+        if (idToken == null) {
+            throw new BusinessException("Token do Google inválido ou expirado.");
+        }
+
+        GoogleIdToken.Payload payload = idToken.getPayload();
+        String email = payload.getEmail();
+        if (email == null || !Boolean.TRUE.equals(payload.getEmailVerified())) {
+            throw new BusinessException("O e-mail da sua conta Google não está verificado.");
+        }
+
+        Usuario usuario = usuarioRepository.findByEmail(email)
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "Nenhum restaurante cadastrado para este e-mail. Cadastre-se para continuar."));
+
+        if (!usuario.isAtivo()) {
+            throw new BusinessException("Usuário desativado. Entre em contato com o administrador.");
+        }
+        if (!usuario.isEmailVerificado()) {
+            throw new BusinessException("E-mail não verificado. Verifique sua caixa de entrada.");
+        }
+
+        return buildAuthResponse(usuario);
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -296,6 +331,7 @@ public class AuthService {
         criarInstanciaWhatsapp(restaurante);
         criarContratoBilling(restaurante.getId(), pendente.getPlanoId());
         grupoService.criarGruposPadrao(restaurante.getId());
+        criarCategoriasPadraoCatalogo(restaurante.getId());
         return buildAuthResponse(admin);
     }
 
@@ -333,6 +369,18 @@ public class AuthService {
             );
         } catch (Exception e) {
             log.warn("Não foi possível criar contrato no billing-service: {}", e.getMessage());
+        }
+    }
+
+    private void criarCategoriasPadraoCatalogo(Long restauranteId) {
+        try {
+            restTemplate.postForObject(
+                "http://catalog-service/internal/categorias/padrao",
+                Map.of("restauranteId", restauranteId),
+                Object.class
+            );
+        } catch (Exception e) {
+            log.warn("Não foi possível criar categorias padrão no catalog-service: {}", e.getMessage());
         }
     }
 

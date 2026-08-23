@@ -45,6 +45,18 @@ public class RestauranteInternalController {
             .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/{id}/localizacao")
+    public ResponseEntity<RestauranteLocalizacaoInternalResponse> getLocalizacao(@PathVariable Long id) {
+        return restauranteRepository.findById(id)
+            .map(r -> ResponseEntity.ok(new RestauranteLocalizacaoInternalResponse(r.getLatitude(), r.getLongitude())))
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    // Double (não String) — latitude/longitude nulos viram `null` no JSON em
+    // vez de vazio, o que o Map.of(...) usado no resto deste controller não
+    // suporta (lança NPE em valor nulo).
+    public record RestauranteLocalizacaoInternalResponse(Double latitude, Double longitude) {}
+
     @SuppressWarnings("null")
     @GetMapping("/{id}/status")
     public ResponseEntity<Map<String, Object>> getStatus(@PathVariable Long id) {

@@ -29,6 +29,7 @@ public class UsuarioService {
     private final GrupoRepository grupoRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
+    private final AuditoriaService auditoriaService;
 
     public List<UsuarioResponse> listarPorRestaurante(@NonNull Long restauranteId) {
         return usuarioRepository.findByRestauranteIdAndAtivoTrue(restauranteId)
@@ -79,7 +80,12 @@ public class UsuarioService {
                 request.getSenha() != null ? request.getSenha() : gerarSenhaTemporaria()))
             .role(request.getRole())
             .ativo(true)
+            .emailVerificado(true)
             .build());
+
+        auditoriaService.registrar(restauranteId, "USUARIO_CRIADO",
+            "Usuário " + usuario.getNome() + " (" + usuario.getEmail() + ") criado como " + usuario.getRole(),
+            usuario.getId(), usuario.getNome());
 
         return toResponse(usuario);
     }
@@ -113,6 +119,10 @@ public class UsuarioService {
             .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
         usuario.setAtivo(false);
         usuarioRepository.save(usuario);
+
+        auditoriaService.registrar(restauranteId, "USUARIO_REMOVIDO",
+            "Usuário " + usuario.getNome() + " (" + usuario.getEmail() + ") desativado",
+            usuario.getId(), usuario.getNome());
     }
 
     private UsuarioResponse toResponse(Usuario u) {

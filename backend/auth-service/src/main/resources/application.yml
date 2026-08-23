@@ -47,8 +47,13 @@ eureka:
     prefer-ip-address: true
 
 jwt:
-  secret: ${JWT_SECRET:comanda_digital_super_secret_key_2024_must_be_at_least_32_chars}
+  secret: ${JWT_SECRET:oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
   expiration: ${JWT_EXPIRATION:86400000}
+
+google:
+  # Mesmo Client ID OAuth usado pelo frontend (VITE_GOOGLE_CLIENT_ID) — não é
+  # segredo, só precisa bater como "audience" na verificação do ID token.
+  client-id: ${GOOGLE_CLIENT_ID:}
 
 management:
   endpoints:

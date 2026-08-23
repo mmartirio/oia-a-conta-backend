@@ -10,6 +10,7 @@ import com.oiaaconta.auth.entity.Restaurante;
 import com.oiaaconta.auth.exception.BusinessException;
 import com.oiaaconta.auth.exception.ResourceNotFoundException;
 import com.oiaaconta.auth.repository.RestauranteRepository;
+import com.oiaaconta.auth.util.ImagemValidator;
 import com.oiaaconta.auth.util.SlugUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.lang.NonNull;
@@ -147,9 +148,7 @@ public class RestauranteService {
 
     private String validarImagemOuLimpar(String imagem) {
         if (imagem == null || imagem.isBlank()) return null;
-        if (!imagem.startsWith("data:image/")) {
-            throw new BusinessException("Arquivo inválido. Envie uma imagem (PNG, JPG ou WEBP).");
-        }
+        ImagemValidator.validar(imagem);
         if (imagem.length() > LOGO_MAX_CHARS) {
             throw new BusinessException("Imagem muito grande. Envie um arquivo menor (até ~1,5MB).");
         }
