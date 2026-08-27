@@ -26,6 +26,9 @@ jobs:
           - notification-service
           - order-service
           - api-gateway
+          - billing-service
+          - ifood-service
+          - whatsapp-service
 
     steps:
       - uses: actions/checkout@v4

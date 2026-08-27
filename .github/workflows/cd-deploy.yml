@@ -5,6 +5,7 @@ on:
     branches: [main]
     tags:
       - 'v*'
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -35,6 +36,12 @@ jobs:
             context: backend/order-service
           - name: api-gateway
             context: backend/api-gateway
+          - name: billing-service
+            context: backend/billing-service
+          - name: ifood-service
+            context: backend/ifood-service
+          - name: whatsapp-service
+            context: backend/whatsapp-service
 
     steps:
       - uses: actions/checkout@v4
