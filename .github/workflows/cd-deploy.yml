@@ -35,8 +35,6 @@ jobs:
             context: backend/order-service
           - name: api-gateway
             context: backend/api-gateway
-          - name: frontend
-            context: frontend
 
     steps:
       - uses: actions/checkout@v4
