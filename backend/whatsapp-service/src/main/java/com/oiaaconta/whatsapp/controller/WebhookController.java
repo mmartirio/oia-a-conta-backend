@@ -2,6 +2,7 @@ package com.oiaaconta.whatsapp.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oiaaconta.whatsapp.client.AuthClient;
+import com.oiaaconta.whatsapp.client.BillingClient;
 import com.oiaaconta.whatsapp.client.EvolutionApiClient.WebhookPayload;
 import com.oiaaconta.whatsapp.service.ChatbotService;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/webhook")
@@ -24,10 +26,17 @@ public class WebhookController {
 
     private final ChatbotService chatbotService;
     private final AuthClient authClient;
+    private final BillingClient billingClient;
     private final ObjectMapper objectMapper;
 
     @Value("${evolution.webhook.secret:}")
     private String webhookSecret;
+
+    // Mesmo padrão usado por WhatsappAdminService.resolverInstancia quando
+    // restauranteId é null — é a instância da plataforma (suporte), não de um
+    // restaurante específico.
+    @Value("${evolution.api.instance:oiaaconta}")
+    private String instanciaPlataforma;
 
     @PostMapping("/evolution")
     public ResponseEntity<Void> receber(
@@ -64,13 +73,26 @@ public class WebhookController {
             String texto = data.getMessage() != null ? data.getMessage().getText() : null;
             if (texto == null || texto.isBlank()) return ResponseEntity.ok().build();
 
+            String pushName = data.getPushName();
+
+            if (instanciaPlataforma.equals(payload.getInstance())) {
+                try {
+                    billingClient.registrarMensagemTicket(Map.of(
+                        "telefone", telefone,
+                        "nomeContato", pushName != null ? pushName : "",
+                        "mensagem", texto));
+                } catch (Exception e) {
+                    log.error("Erro ao registrar ticket de suporte via WhatsApp: {}", e.getMessage());
+                }
+                return ResponseEntity.ok().build();
+            }
+
             Long restauranteId = resolverRestauranteId(payload.getInstance());
             if (restauranteId == null) {
                 log.warn("Instância '{}' não mapeada para nenhum restaurante — mensagem ignorada", payload.getInstance());
                 return ResponseEntity.ok().build();
             }
 
-            String pushName = data.getPushName();
             chatbotService.processarMensagem(telefone, texto, restauranteId, pushName);
 
         } catch (Exception e) {

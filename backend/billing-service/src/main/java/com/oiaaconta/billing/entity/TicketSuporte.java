@@ -23,7 +23,9 @@ public class TicketSuporte {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "restaurante_id", nullable = false)
+    // Nulo para tickets originados por WhatsApp (sem restaurante vinculado —
+    // ver whatsappTelefone).
+    @Column(name = "restaurante_id")
     private Long restauranteId;
 
     @Column(name = "restaurante_nome", length = 200)
@@ -31,6 +33,16 @@ public class TicketSuporte {
 
     @Column(name = "usuario_id")
     private Long usuarioId;
+
+    @Column(name = "whatsapp_telefone", length = 30)
+    private String whatsappTelefone;
+
+    @Column(name = "whatsapp_nome", length = 150)
+    private String whatsappNome;
+
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private String origem = "PAINEL"; // PAINEL | WHATSAPP
 
     @Column(nullable = false, length = 200)
     private String titulo;
