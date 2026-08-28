@@ -105,7 +105,8 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
             return chain.filter(mutated);
         } catch (Exception e) {
-            log.warn("JWT inválido: {}", e.getMessage());
+            log.warn("JWT inválido em {} {}: {}: {}", exchange.getRequest().getMethod(), path,
+                e.getClass().getName(), e.getMessage(), e);
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
             return exchange.getResponse().setComplete();
         }
