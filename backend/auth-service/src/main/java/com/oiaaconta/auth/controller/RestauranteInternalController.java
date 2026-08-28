@@ -40,7 +40,8 @@ public class RestauranteInternalController {
     public ResponseEntity<Map<String, Object>> getSlug(@PathVariable Long id) {
         return restauranteRepository.findById(id)
             .map(r -> ResponseEntity.ok(Map.<String, Object>of(
-                "slug", r.getSlug() != null ? r.getSlug() : ""
+                "slug", r.getSlug() != null ? r.getSlug() : "",
+                "nome", r.getNome() != null ? r.getNome() : ""
             )))
             .orElse(ResponseEntity.notFound().build());
     }

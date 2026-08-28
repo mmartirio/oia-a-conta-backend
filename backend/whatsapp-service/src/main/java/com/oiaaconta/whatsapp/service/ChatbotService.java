@@ -203,17 +203,32 @@ public class ChatbotService {
             return;
         }
         resetarSessao(s);
+        String nomeRestaurante = buscarNomeRestaurante(s.getRestauranteId());
         if (pushName != null && !pushName.isBlank()) {
             s.setClienteNome(pushName.trim());
             String msg = mensagemService.resolverTexto(s.getRestauranteId(), "CHATBOT_BOAS_VINDAS",
-                Map.of("NOME", pushName.trim()));
+                Map.of("NOME", pushName.trim(), "RESTAURANTE", nomeRestaurante));
             enviar(s.getTelefone(), msg, s.getRestauranteId());
             enviarLinkCardapio(s);
             enviarBotaoAtendente(s);
             s.setEstado(EstadoSessao.AGUARDANDO_PEDIDO_WEB);
         } else {
             s.setEstado(EstadoSessao.COLETANDO_NOME);
-            enviar(s.getTelefone(), mensagemService.resolverTexto(s.getRestauranteId(), "CHATBOT_PEDIR_NOME", null), s.getRestauranteId());
+            enviar(s.getTelefone(), mensagemService.resolverTexto(s.getRestauranteId(), "CHATBOT_PEDIR_NOME",
+                Map.of("RESTAURANTE", nomeRestaurante)), s.getRestauranteId());
+        }
+    }
+
+    // Best-effort: se auth-service estiver fora do ar, cai num texto genérico
+    // em vez de travar a saudação do chatbot por causa disso.
+    private String buscarNomeRestaurante(Long restauranteId) {
+        try {
+            Map<String, String> info = authClient.getSlug(restauranteId);
+            String nome = info != null ? info.get("nome") : null;
+            return (nome != null && !nome.isBlank()) ? nome : "nosso delivery";
+        } catch (Exception e) {
+            log.warn("Falha ao buscar nome do restaurante {}: {}", restauranteId, e.getMessage());
+            return "nosso delivery";
         }
     }
 

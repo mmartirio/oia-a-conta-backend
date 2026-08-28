@@ -58,9 +58,9 @@ public class MensagemTemplateService {
 
     private static final Map<String, String> DEFAULTS = new LinkedHashMap<>() {{
         put("CHATBOT_BOAS_VINDAS",
-            "Olá, *{NOME}*! 🍕 Bem-vindo ao delivery!\n\nAqui está nosso cardápio:");
+            "Olá, *{NOME}*! 🍕 Bem-vindo ao {RESTAURANTE}!\n\nAqui está nosso cardápio:");
         put("CHATBOT_PEDIR_NOME",
-            "Olá! 🍕 Bem-vindo ao delivery!\n\nQual é o seu nome?");
+            "Olá! 🍕 Bem-vindo ao {RESTAURANTE}!\n\nQual é o seu nome?");
         put("CHATBOT_SAUDACAO_APOS_NOME",
             "Olá, *{NOME}*! 🍕\n\nAqui está nosso cardápio:");
         put("CHATBOT_PEDIR_ENDERECO",
@@ -87,7 +87,8 @@ public class MensagemTemplateService {
     }};
 
     private static final Map<String, String> VARIAVEL_HINTS = new LinkedHashMap<>() {{
-        put("CHATBOT_BOAS_VINDAS",       "Variável disponível: {NOME}");
+        put("CHATBOT_BOAS_VINDAS",       "Variáveis disponíveis: {NOME}, {RESTAURANTE}");
+        put("CHATBOT_PEDIR_NOME",        "Variável disponível: {RESTAURANTE}");
         put("CHATBOT_SAUDACAO_APOS_NOME","Variável disponível: {NOME}");
         put("CHATBOT_PEDIDO_ENVIADO",    "Variável disponível: {PEDIDO_ID}");
         put("PEDIDO_PIX",                "Variáveis disponíveis: {PIX_CHAVE}, {VALOR}");
