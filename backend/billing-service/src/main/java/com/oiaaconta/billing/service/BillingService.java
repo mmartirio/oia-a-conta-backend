@@ -2,11 +2,13 @@ package com.oiaaconta.billing.service;
 
 import com.oiaaconta.billing.client.AuthInternalClient;
 import com.oiaaconta.billing.entity.Contrato;
+import com.oiaaconta.billing.entity.LinkSocial;
 import com.oiaaconta.billing.entity.Pagamento;
 import com.oiaaconta.billing.entity.Plano;
 import com.oiaaconta.billing.enums.StatusContrato;
 import com.oiaaconta.billing.enums.StatusPagamento;
 import com.oiaaconta.billing.repository.ContratoRepository;
+import com.oiaaconta.billing.repository.LinkSocialRepository;
 import com.oiaaconta.billing.repository.PagamentoRepository;
 import com.oiaaconta.billing.repository.PlanoRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,7 @@ public class BillingService {
     private final PlanoRepository planoRepository;
     private final ContratoRepository contratoRepository;
     private final PagamentoRepository pagamentoRepository;
+    private final LinkSocialRepository linkSocialRepository;
     private final AuthInternalClient authInternalClient;
 
     // ─── Planos ───────────────────────────────────────────────────────────────
@@ -65,6 +68,44 @@ public class BillingService {
         plano.setAtivo(dados.isAtivo());
         plano.setDestaque(dados.isDestaque());
         return planoRepository.save(plano);
+    }
+
+    // ─── Links Sociais ──────────────────────────────────────────────────────────
+
+    public List<LinkSocial> listarLinksSociaisAtivos() {
+        return linkSocialRepository.findByAtivoTrueOrderByTipoAsc();
+    }
+
+    public List<LinkSocial> listarTodosLinksSociais() {
+        return linkSocialRepository.findAll();
+    }
+
+    @Transactional
+    @SuppressWarnings("null")
+    public LinkSocial criarLinkSocial(LinkSocial link) {
+        return linkSocialRepository.save(link);
+    }
+
+    @Transactional
+    @SuppressWarnings("null")
+    public LinkSocial atualizarLinkSocial(Long id, LinkSocial dados) {
+        LinkSocial link = linkSocialRepository.findById(id)
+            .orElseThrow(() -> new NoSuchElementException("Link social não encontrado"));
+        if (dados == null) {
+            throw new IllegalArgumentException("Dados do link são obrigatórios");
+        }
+        link.setTipo(dados.getTipo());
+        link.setUrl(dados.getUrl());
+        link.setAtivo(dados.isAtivo());
+        return linkSocialRepository.save(link);
+    }
+
+    @Transactional
+    public void deletarLinkSocial(Long id) {
+        if (!linkSocialRepository.existsById(id)) {
+            throw new NoSuchElementException("Link social não encontrado");
+        }
+        linkSocialRepository.deleteById(id);
     }
 
     // ─── Contratos ────────────────────────────────────────────────────────────
