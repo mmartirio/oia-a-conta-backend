@@ -162,7 +162,14 @@ public class UsuarioService {
         if (request.getRole() != Role.SUPER_ADMIN) {
             usuario.setRole(request.getRole());
         }
-        usuario.setGrupo(buscarGrupo(restauranteId, request.getGrupoId()));
+        if (usuario.isDonoConta()) {
+            Long grupoAtualId = usuario.getGrupo() != null ? usuario.getGrupo().getId() : null;
+            if (!java.util.Objects.equals(grupoAtualId, request.getGrupoId())) {
+                throw new BusinessException("O dono do estabelecimento não pode ser removido do grupo Administrador");
+            }
+        } else {
+            usuario.setGrupo(buscarGrupo(restauranteId, request.getGrupoId()));
+        }
 
         return toResponse(usuarioRepository.save(usuario));
     }
@@ -196,6 +203,7 @@ public class UsuarioService {
             .createdAt(u.getCreatedAt())
             .grupoId(u.getGrupo() != null ? u.getGrupo().getId() : null)
             .grupoNome(u.getGrupo() != null ? u.getGrupo().getNome() : null)
+            .donoConta(u.isDonoConta())
             .build();
     }
 

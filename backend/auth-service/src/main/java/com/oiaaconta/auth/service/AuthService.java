@@ -6,6 +6,7 @@ import com.oiaaconta.auth.dto.request.LoginRequest;
 import com.oiaaconta.auth.dto.request.RegistroRequest;
 import com.oiaaconta.auth.dto.response.AuthResponse;
 import com.oiaaconta.auth.entity.EmailVerificacao;
+import com.oiaaconta.auth.entity.Grupo;
 import com.oiaaconta.auth.entity.RegistroPendente;
 import com.oiaaconta.auth.entity.Restaurante;
 import com.oiaaconta.auth.entity.Usuario;
@@ -216,9 +217,13 @@ public class AuthService {
                 .build()
         );
 
+        Grupo grupoAdministrador = grupoService.criarGruposPadrao(restaurante.getId());
+
         Usuario admin = usuarioRepository.save(
             Usuario.builder()
                 .restaurante(restaurante)
+                .grupo(grupoAdministrador)
+                .donoConta(true)
                 .nome(request.getNomeAdmin())
                 .email(request.getEmail())
                 .senha(passwordEncoder.encode(request.getSenha()))
@@ -231,7 +236,6 @@ public class AuthService {
         emailService.enviarBoasVindas(request.getEmail(), request.getNomeAdmin(), restaurante.getNome());
         criarInstanciaWhatsapp(restaurante);
         criarContratoBilling(restaurante.getId(), request.getPlanoId());
-        grupoService.criarGruposPadrao(restaurante.getId());
         criarCategoriasPadraoCatalogo(restaurante.getId());
         return buildAuthResponse(admin);
     }
@@ -316,9 +320,12 @@ public class AuthService {
                 .ativo(true)
                 .build()
         );
+        Grupo grupoAdministrador = grupoService.criarGruposPadrao(restaurante.getId());
         Usuario admin = usuarioRepository.save(
             Usuario.builder()
                 .restaurante(restaurante)
+                .grupo(grupoAdministrador)
+                .donoConta(true)
                 .nome(pendente.getNomeAdmin())
                 .email(pendente.getEmail())
                 .senha(pendente.getSenhaHash())
@@ -330,7 +337,6 @@ public class AuthService {
         emailService.enviarBoasVindas(pendente.getEmail(), pendente.getNomeAdmin(), restaurante.getNome());
         criarInstanciaWhatsapp(restaurante);
         criarContratoBilling(restaurante.getId(), pendente.getPlanoId());
-        grupoService.criarGruposPadrao(restaurante.getId());
         criarCategoriasPadraoCatalogo(restaurante.getId());
         return buildAuthResponse(admin);
     }

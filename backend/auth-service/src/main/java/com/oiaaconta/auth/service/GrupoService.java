@@ -67,8 +67,8 @@ public class GrupoService {
     // Chamado no cadastro de um novo restaurante (AuthService) — dá um
     // ponto de partida pronto de grupos, sem impedir a criação de outros.
     @Transactional
-    public void criarGruposPadrao(@NonNull Long restauranteId) {
-        grupoRepository.save(Grupo.builder()
+    public Grupo criarGruposPadrao(@NonNull Long restauranteId) {
+        Grupo administrador = grupoRepository.save(Grupo.builder()
             .restauranteId(restauranteId).nome("Administrador").padrao(true)
             .permissoes(new HashSet<>(Permissao.CHAVES))
             .build());
@@ -84,6 +84,7 @@ public class GrupoService {
             .restauranteId(restauranteId).nome("Entregador").padrao(true)
             .permissoes(new HashSet<>(Set.of("ENTREGADOR")))
             .build());
+        return administrador;
     }
 
     private Grupo find(Long restauranteId, Long id) {

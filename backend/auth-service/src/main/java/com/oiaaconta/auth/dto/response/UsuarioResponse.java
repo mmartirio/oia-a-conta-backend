@@ -19,4 +19,5 @@ public class UsuarioResponse {
     private Long grupoId;
     private String grupoNome;
     private Set<String> permissoes;
+    private boolean donoConta;
 }

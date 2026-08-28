@@ -47,6 +47,13 @@ public class Usuario {
     @Column(name = "email_verificado")
     private boolean emailVerificado = false;
 
+    // Dono do estabelecimento (primeiro ADMIN criado no cadastro do
+    // restaurante) — sempre no grupo Administrador, sem poder ser removido
+    // dele (ver UsuarioService.atualizar).
+    @Builder.Default
+    @Column(name = "dono_conta")
+    private boolean donoConta = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
