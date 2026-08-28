@@ -4,7 +4,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.oiaaconta.auth.dto.request.LoginRequest;
 import com.oiaaconta.auth.dto.request.RegistroRequest;
-import com.oiaaconta.auth.client.BillingClient;
+import com.oiaaconta.auth.client.AuditoriaClient;
 import com.oiaaconta.auth.dto.response.AuthResponse;
 import com.oiaaconta.auth.entity.EmailVerificacao;
 import com.oiaaconta.auth.entity.Grupo;
@@ -56,7 +56,7 @@ public class AuthService {
     private final GoogleIdTokenVerifier googleIdTokenVerifier;
     private final AuditoriaService auditoriaService;
     private final LoginAttemptService loginAttemptService;
-    private final BillingClient billingClient;
+    private final AuditoriaClient billingClient;
 
     @Value("${evolution.api.url:http://oia-evolution:8080}")
     private String evolutionUrl;
@@ -435,7 +435,7 @@ public class AuthService {
             return permissoes;
         }
         try {
-            BillingClient.PlanoLimitesResponse limites = billingClient.buscarLimitesPlano(usuario.getRestaurante().getId());
+            AuditoriaClient.PlanoLimitesResponse limites = billingClient.buscarLimitesPlano(usuario.getRestaurante().getId());
             return FuncionalidadePermissoes.aplicar(permissoes, limites.getFuncionalidades());
         } catch (Exception e) {
             log.warn("Não foi possível verificar recursos do plano do restaurante {}: {}",

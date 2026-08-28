@@ -1,6 +1,6 @@
 package com.oiaaconta.auth.service;
 
-import com.oiaaconta.auth.client.BillingClient;
+import com.oiaaconta.auth.client.AuditoriaClient;
 import com.oiaaconta.auth.dto.request.CriarSuperAdminRequest;
 import com.oiaaconta.auth.dto.request.UsuarioRequest;
 import com.oiaaconta.auth.dto.response.UsuarioResponse;
@@ -32,7 +32,7 @@ public class UsuarioService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final AuditoriaService auditoriaService;
-    private final BillingClient billingClient;
+    private final AuditoriaClient billingClient;
 
     public List<UsuarioResponse> listarPorRestaurante(@NonNull Long restauranteId) {
         return usuarioRepository.findByRestauranteIdAndAtivoTrue(restauranteId)
