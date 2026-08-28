@@ -213,6 +213,15 @@ public class ChatbotService {
         }
     }
 
+    // Cardápio público mudou de path (/cardapio/:slug) para subdomínio
+    // (slug.dominio) — deriva o domínio a partir da própria frontend-base-url
+    // (removendo esquema e um eventual "www.") em vez de outra env var, pra
+    // não ter duas configs que podem ficar dessincronizadas.
+    private String linkCardapio(String slug) {
+        String host = frontendBaseUrl.replaceFirst("^https?://", "").replaceFirst("^www\\.", "");
+        return "https://" + slug + "." + host;
+    }
+
     private void enviarLinkCardapio(SessaoWhatsapp s) {
         try {
             Map<String, String> slugMap = authClient.getSlug(s.getRestauranteId());
@@ -220,7 +229,7 @@ public class ChatbotService {
             if (slug == null || slug.isBlank()) return;
 
             String jid = s.getTelefone();
-            String link = frontendBaseUrl + "/cardapio/" + slug;
+            String link = linkCardapio(slug);
             enviar(jid, link, s.getRestauranteId());
         } catch (Exception e) {
             log.warn("Não foi possível enviar link do cardápio: {}", e.getMessage());
