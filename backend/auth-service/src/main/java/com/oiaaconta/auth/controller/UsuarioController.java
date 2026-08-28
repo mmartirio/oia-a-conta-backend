@@ -74,4 +74,24 @@ public class UsuarioController {
             "novaSenha", novaSenha
         ));
     }
+
+    @GetMapping("/super-admins")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<List<UsuarioResponse>> listarSuperAdmins() {
+        return ResponseEntity.ok(usuarioService.listarSuperAdmins());
+    }
+
+    @PostMapping("/super-admins")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<UsuarioResponse> criarSuperAdmin(@Valid @RequestBody UsuarioRequest request) {
+        return ResponseEntity.status(201).body(usuarioService.criarSuperAdmin(request));
+    }
+
+    @PutMapping("/super-admins/{id}/ativo")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<UsuarioResponse> alternarAtivoSuperAdmin(
+            @PathVariable @NonNull Long id,
+            @RequestBody java.util.Map<String, Boolean> body) {
+        return ResponseEntity.ok(usuarioService.alternarAtivoSuperAdmin(id, Boolean.TRUE.equals(body.get("ativo"))));
+    }
 }

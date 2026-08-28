@@ -41,6 +41,39 @@ public class UsuarioService {
             .stream().map(this::toResponse).toList();
     }
 
+    public List<UsuarioResponse> listarSuperAdmins() {
+        return usuarioRepository.findByRole(Role.SUPER_ADMIN)
+            .stream().map(this::toResponse).toList();
+    }
+
+    @SuppressWarnings("null")
+    public UsuarioResponse criarSuperAdmin(UsuarioRequest request) {
+        if (usuarioRepository.existsByEmail(request.getEmail())) {
+            throw new BusinessException("E-mail já cadastrado");
+        }
+        Usuario usuario = usuarioRepository.save(Usuario.builder()
+            .nome(request.getNome())
+            .email(request.getEmail())
+            .senha(passwordEncoder.encode(
+                request.getSenha() != null ? request.getSenha() : gerarSenhaTemporaria()))
+            .role(Role.SUPER_ADMIN)
+            .ativo(true)
+            .emailVerificado(true)
+            .build());
+        return toResponse(usuario);
+    }
+
+    public UsuarioResponse alternarAtivoSuperAdmin(@NonNull Long id, boolean ativo) {
+        Usuario usuario = usuarioRepository.findById(id)
+            .filter(u -> u.getRole() == Role.SUPER_ADMIN)
+            .orElseThrow(() -> new ResourceNotFoundException("SUPER_ADMIN não encontrado"));
+        if (!ativo && usuarioRepository.findByRoleAndAtivoTrue(Role.SUPER_ADMIN).size() <= 1) {
+            throw new BusinessException("Não é possível desativar o único SUPER_ADMIN ativo");
+        }
+        usuario.setAtivo(ativo);
+        return toResponse(usuarioRepository.save(usuario));
+    }
+
     public List<UsuarioResponse> listarPorRestauranteGlobal(@NonNull Long restauranteId) {
         return usuarioRepository.findByRestauranteIdAndAtivoTrue(restauranteId)
             .stream().map(this::toResponse).toList();
