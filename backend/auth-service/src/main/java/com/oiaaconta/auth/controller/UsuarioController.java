@@ -95,4 +95,19 @@ public class UsuarioController {
             @RequestBody java.util.Map<String, Boolean> body) {
         return ResponseEntity.ok(usuarioService.alternarAtivoSuperAdmin(id, Boolean.TRUE.equals(body.get("ativo"))));
     }
+
+    @PutMapping("/super-admins/{id}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<UsuarioResponse> atualizarSuperAdmin(
+            @PathVariable @NonNull Long id,
+            @Valid @RequestBody CriarSuperAdminRequest request) {
+        return ResponseEntity.ok(usuarioService.atualizarSuperAdmin(id, request));
+    }
+
+    @DeleteMapping("/super-admins/{id}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Void> excluirSuperAdmin(@PathVariable @NonNull Long id) {
+        usuarioService.excluirSuperAdmin(id);
+        return ResponseEntity.noContent().build();
+    }
 }
