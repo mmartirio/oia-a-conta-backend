@@ -31,6 +31,7 @@ public class ConfiguracaoService {
                 .fechadoManualmente(false)
                 .motivoFechamentoManual(null)
                 .alertaPedidoSom("SOM_1")
+                .entregadorExterno(false)
                 .build());
     }
 
@@ -46,6 +47,7 @@ public class ConfiguracaoService {
         if (request.getComissaoCozinheiro() != null) config.setComissaoCozinheiro(request.getComissaoCozinheiro());
         if (request.getAlertaPedidoSom() != null) config.setAlertaPedidoSom(request.getAlertaPedidoSom());
         if (request.getNotificacaoWhatsappFalada() != null) config.setNotificacaoWhatsappFalada(request.getNotificacaoWhatsappFalada());
+        if (request.getEntregadorExterno() != null) config.setEntregadorExterno(request.getEntregadorExterno());
 
         ConfiguracaoResponse response = toResponse(configRepository.save(config));
         auditoriaService.registrar(restauranteId, "CONFIGURACAO_ALTERADA",
@@ -95,6 +97,7 @@ public class ConfiguracaoService {
             .notificacaoWhatsappFalada(c.isNotificacaoWhatsappFalada())
             .freteTaxaBase(c.getFreteTaxaBase() != null ? c.getFreteTaxaBase() : BigDecimal.ZERO)
             .freteValorPorKm(c.getFreteValorPorKm() != null ? c.getFreteValorPorKm() : BigDecimal.ZERO)
+            .entregadorExterno(c.isEntregadorExterno())
             .build();
     }
 }

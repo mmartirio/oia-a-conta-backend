@@ -88,12 +88,14 @@ public class PausaFuncionamentoService {
 
         // 1) Fechamento manual tem prioridade máxima: independe de pausa/horário.
         Optional<RestauranteConfig> config = restauranteConfigRepository.findByRestauranteId(restauranteId);
+        boolean entregadorExterno = config.map(RestauranteConfig::isEntregadorExterno).orElse(false);
         if (config.isPresent() && config.get().isFechadoManualmente()) {
             String motivo = config.get().getMotivoFechamentoManual();
             return StatusFuncionamentoResponse.builder()
                 .aberto(false)
                 .motivo(motivo != null && !motivo.isBlank() ? motivo : "Fechado manualmente")
                 .reaberturaPrevista(null)
+                .entregadorExterno(entregadorExterno)
                 .build();
         }
 
@@ -106,22 +108,23 @@ public class PausaFuncionamentoService {
                 .aberto(false)
                 .motivo(p.getTitulo() != null && !p.getTitulo().isBlank() ? p.getTitulo() : p.getMotivo())
                 .reaberturaPrevista(p.getFim())
+                .entregadorExterno(entregadorExterno)
                 .build());
         if (statusPausa.isPresent()) {
             return statusPausa.get();
         }
 
         // 3) Horário semanal configurado.
-        return statusPorHorarioSemanal(restauranteId, agora);
+        return statusPorHorarioSemanal(restauranteId, agora, entregadorExterno);
     }
 
-    private StatusFuncionamentoResponse statusPorHorarioSemanal(Long restauranteId, LocalDateTime agora) {
+    private StatusFuncionamentoResponse statusPorHorarioSemanal(Long restauranteId, LocalDateTime agora, boolean entregadorExterno) {
         List<HorarioFuncionamento> horarios =
             horarioFuncionamentoRepository.findByRestauranteIdOrderByDiaSemanaAscHoraAberturaAsc(restauranteId);
 
         // Restaurante nunca configurou horário semanal: mantém comportamento atual (aberto).
         if (horarios.isEmpty()) {
-            return StatusFuncionamentoResponse.builder().aberto(true).build();
+            return StatusFuncionamentoResponse.builder().aberto(true).entregadorExterno(entregadorExterno).build();
         }
 
         DayOfWeek hoje = agora.getDayOfWeek();
@@ -133,7 +136,7 @@ public class PausaFuncionamentoService {
                 && horaAtual.isBefore(h.getHoraFechamento()));
 
         if (dentroDoExpediente) {
-            return StatusFuncionamentoResponse.builder().aberto(true).build();
+            return StatusFuncionamentoResponse.builder().aberto(true).entregadorExterno(entregadorExterno).build();
         }
 
         LocalDateTime reaberturaPrevista = calcularProximaAbertura(horarios, agora);
@@ -141,6 +144,7 @@ public class PausaFuncionamentoService {
             .aberto(false)
             .motivo("Fora do horário de funcionamento")
             .reaberturaPrevista(reaberturaPrevista)
+            .entregadorExterno(entregadorExterno)
             .build();
     }
 

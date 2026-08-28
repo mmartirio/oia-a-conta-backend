@@ -19,4 +19,5 @@ public class ConfiguracaoResponse {
     private boolean notificacaoWhatsappFalada;
     private BigDecimal freteTaxaBase;
     private BigDecimal freteValorPorKm;
+    private boolean entregadorExterno;
 }

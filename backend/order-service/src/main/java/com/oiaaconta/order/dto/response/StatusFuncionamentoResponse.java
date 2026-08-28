@@ -11,4 +11,5 @@ public class StatusFuncionamentoResponse {
     private boolean aberto;
     private String motivo;
     private LocalDateTime reaberturaPrevista;
+    private boolean entregadorExterno;
 }

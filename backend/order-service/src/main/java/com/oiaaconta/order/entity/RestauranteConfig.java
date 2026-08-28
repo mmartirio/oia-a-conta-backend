@@ -60,4 +60,14 @@ public class RestauranteConfig {
     @Builder.Default
     @Column(name = "frete_valor_por_km", precision = 10, scale = 2)
     private BigDecimal freteValorPorKm = BigDecimal.ZERO;
+
+    // Restaurante sem entregador próprio (usa 99/Uber Entrega etc.) — some o
+    // rastreamento interno de entregador: o pedido é dado como concluído
+    // assim que o restaurante confirma que entregou ao entregador externo,
+    // em vez de esperar um entregador cadastrado marcar "saiu"/"entregue"
+    // (ver EntregaService/GarconDeliveryLista no frontend). Também desativa
+    // cartão de crédito no checkout do cliente (sem maquininha na entrega).
+    @Builder.Default
+    @Column(name = "entregador_externo", nullable = false)
+    private boolean entregadorExterno = false;
 }

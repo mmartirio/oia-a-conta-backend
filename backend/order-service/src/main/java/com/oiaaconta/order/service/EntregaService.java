@@ -52,6 +52,14 @@ public class EntregaService {
         if (request.isOrigemPdv() && request.getMetodoPagamento() == MetodoPagamento.PIX) {
             throw new BusinessException("Delivery criado pelo PDV não aceita PIX — o entregador recebe em dinheiro ou cartão e repassa ao caixa na volta.");
         }
+        // Sem maquininha na entrega quando quem leva é um entregador externo
+        // (99/Uber Entrega etc.) — mesma trava do frontend (CardapioPublico),
+        // repetida aqui pro checkout público (sem auth) não poder ser
+        // contornado enviando CARTAO_CREDITO direto pela API.
+        if (request.isOrigemWhatsapp() && request.getMetodoPagamento() == MetodoPagamento.CARTAO_CREDITO
+                && configuracaoService.get(restauranteId).isEntregadorExterno()) {
+            throw new BusinessException("Cartão de crédito não disponível — este restaurante usa entregador externo.");
+        }
         if (request.isOrigemIfood()) {
             if (request.getIfoodOrderId() == null || request.getIfoodOrderId().isBlank()) {
                 throw new BusinessException("Pedido do iFood sem ifoodOrderId");
