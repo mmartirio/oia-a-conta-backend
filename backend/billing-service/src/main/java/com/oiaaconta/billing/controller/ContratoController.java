@@ -35,6 +35,12 @@ public class ContratoController {
         return ResponseEntity.ok(billingService.buscarContratoDoRestaurante(restauranteId));
     }
 
+    @PostMapping("/meu/pagar")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<Map<String, String>> pagarAssinatura(@RequestHeader("X-Restaurante-Id") Long restauranteId) {
+        return ResponseEntity.ok(Map.of("checkoutUrl", billingService.criarCobrancaAssinatura(restauranteId)));
+    }
+
     @GetMapping("/restaurante/{restauranteId}")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<Contrato> buscarPorRestaurante(@PathVariable Long restauranteId) {

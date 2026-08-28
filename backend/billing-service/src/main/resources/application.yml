@@ -37,6 +37,10 @@ mercadopago:
   access-token: ${MP_ACCESS_TOKEN:}
   webhook-secret: ${MP_WEBHOOK_SECRET:}
 
+app:
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost}
+  api-base-url: ${API_BASE_URL:http://localhost}
+
 auth-service:
   url: ${AUTH_SERVICE_URL:http://auth-service}
 

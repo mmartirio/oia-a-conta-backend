@@ -37,6 +37,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         "/api/catalog/publico",
         "/api/whatsapp/publico",
         "/api/configuracoes/pausas/status",
+        "/api/pagamentos/webhook",
         "/ws",
         "/webhook",
         "/cardapio"

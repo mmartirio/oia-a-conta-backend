@@ -377,6 +377,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
       MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost}
+      API_BASE_URL: ${API_BASE_URL:-http://localhost}
       AUTH_SERVICE_URL: http://auth-service:8081
     # Sem porta pro host — só alcançável via api-gateway.
     depends_on:

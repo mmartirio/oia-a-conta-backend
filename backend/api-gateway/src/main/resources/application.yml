@@ -49,7 +49,7 @@ spring:
         - id: billing-service
           uri: lb://billing-service
           predicates:
-            - Path=/api/planos/**, /api/contratos/**, /api/tickets/**, /api/auditoria/**, /api/links-sociais/**
+            - Path=/api/planos/**, /api/contratos/**, /api/tickets/**, /api/auditoria/**, /api/links-sociais/**, /api/pagamentos/**
 
         - id: order-service
           uri: lb://order-service

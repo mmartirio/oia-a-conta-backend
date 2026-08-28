@@ -1,6 +1,8 @@
 package com.oiaaconta.billing.service;
 
+import com.mercadopago.resources.payment.Payment;
 import com.oiaaconta.billing.client.AuthInternalClient;
+import com.oiaaconta.billing.client.MercadoPagoClient;
 import com.oiaaconta.billing.entity.Contrato;
 import com.oiaaconta.billing.entity.LinkSocial;
 import com.oiaaconta.billing.entity.Pagamento;
@@ -34,6 +36,7 @@ public class BillingService {
     private final PagamentoRepository pagamentoRepository;
     private final LinkSocialRepository linkSocialRepository;
     private final AuthInternalClient authInternalClient;
+    private final MercadoPagoClient mercadoPagoClient;
 
     // ─── Planos ───────────────────────────────────────────────────────────────
 
@@ -197,6 +200,51 @@ public class BillingService {
             .metodo("MANUAL")
             .observacao(observacao)
             .build());
+        ativarContratoAposPagamento(contrato);
+        return pag;
+    }
+
+    // ─── Mercado Pago ───────────────────────────────────────────────────────────
+
+    // Gera o link do Checkout Pro pra o restaurante pagar a assinatura online.
+    public String criarCobrancaAssinatura(Long restauranteId) {
+        Contrato contrato = buscarContratoDoRestaurante(restauranteId);
+        return mercadoPagoClient.criarPreferenceAssinatura(
+            contrato.getPlano().getNome(), contrato.getPlano().getPrecoMensal(), contrato.getId());
+    }
+
+    // Chamado pelo webhook (PagamentoWebhookController) quando o Mercado Pago
+    // notifica um pagamento. Sempre reconsulta o pagamento na API do MP em vez
+    // de confiar no status que vier no corpo do webhook (recomendação oficial
+    // do MP — o payload da notificação não é fonte de verdade).
+    @Transactional
+    @SuppressWarnings("null")
+    public void confirmarPagamentoMercadoPago(String mpPaymentId) {
+        if (pagamentoRepository.findByMpPaymentId(mpPaymentId).isPresent()) {
+            return; // já processado — o MP reenvia notificações (idempotência)
+        }
+        Payment payment = mercadoPagoClient.buscarPagamento(Long.valueOf(mpPaymentId));
+        if (!"approved".equals(payment.getStatus())) {
+            return;
+        }
+        Long contratoId = Long.valueOf(payment.getExternalReference());
+        Contrato contrato = contratoRepository.findById(contratoId)
+            .orElseThrow(() -> new NoSuchElementException(
+                "Contrato não encontrado para pagamento Mercado Pago " + mpPaymentId));
+
+        pagamentoRepository.save(Pagamento.builder()
+            .contrato(contrato)
+            .valor(payment.getTransactionAmount())
+            .status(StatusPagamento.PAGO)
+            .dataPagamento(LocalDate.now())
+            .metodo("MERCADO_PAGO")
+            .mpPaymentId(mpPaymentId)
+            .build());
+        ativarContratoAposPagamento(contrato);
+    }
+
+    @SuppressWarnings("null")
+    private void ativarContratoAposPagamento(Contrato contrato) {
         contrato.setStatus(StatusContrato.ATIVO);
         contrato.setDataVencimento(LocalDate.now().plusDays(30));
         contrato.setDataProximoVencimento(LocalDate.now().plusDays(30));
@@ -204,7 +252,6 @@ public class BillingService {
         try { authInternalClient.desbloquear(contrato.getRestauranteId()); } catch (Exception e) {
             log.warn("Falha ao desbloquear restaurante {}: {}", contrato.getRestauranteId(), e.getMessage());
         }
-        return pag;
     }
 
     // ─── Relatório financeiro ─────────────────────────────────────────────────
