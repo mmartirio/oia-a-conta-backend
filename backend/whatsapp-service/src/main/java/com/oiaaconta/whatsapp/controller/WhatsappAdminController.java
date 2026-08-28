@@ -4,11 +4,9 @@ import com.oiaaconta.whatsapp.dto.MensagemTemplateDto;
 import com.oiaaconta.whatsapp.dto.WhatsappStatusDto;
 import com.oiaaconta.whatsapp.dto.response.ConversaResumoResponse;
 import com.oiaaconta.whatsapp.dto.response.MensagemResponse;
-import com.oiaaconta.whatsapp.entity.AutomacaoMensagem;
 import com.oiaaconta.whatsapp.enums.DirecaoMensagem;
 import com.oiaaconta.whatsapp.enums.EstadoSessao;
 import com.oiaaconta.whatsapp.repository.SessaoWhatsappRepository;
-import com.oiaaconta.whatsapp.service.AutomacaoMensagemService;
 import com.oiaaconta.whatsapp.service.MensagemTemplateService;
 import com.oiaaconta.whatsapp.service.MensagemWhatsappService;
 import com.oiaaconta.whatsapp.service.WhatsappAdminService;
@@ -35,7 +33,6 @@ public class WhatsappAdminController {
     private final MensagemWhatsappService mensagemWhatsappService;
     private final WhatsappConfigService whatsappConfigService;
     private final SessaoWhatsappRepository sessaoRepo;
-    private final AutomacaoMensagemService automacaoService;
 
     @GetMapping("/status")
     public ResponseEntity<WhatsappStatusDto> status(
@@ -80,7 +77,7 @@ public class WhatsappAdminController {
             @RequestHeader("X-Restaurante-Id") Long restauranteId,
             @PathVariable String chave,
             @RequestBody Map<String, String> body) {
-        mensagemService.salvar(restauranteId, chave, body.get("texto"));
+        mensagemService.salvar(restauranteId, chave, body.get("texto"), body.get("label"));
         return ResponseEntity.ok().build();
     }
 
@@ -167,38 +164,6 @@ public class WhatsappAdminController {
             @RequestHeader("X-Restaurante-Id") Long restauranteId,
             @RequestBody Map<String, String> body) {
         whatsappConfigService.atualizarImagemCardapio(restauranteId, body.get("imagemBase64"));
-        return ResponseEntity.ok().build();
-    }
-
-    @GetMapping("/automacoes")
-    public ResponseEntity<List<AutomacaoMensagem>> listarAutomacoes(
-            @RequestHeader("X-Restaurante-Id") Long restauranteId) {
-        return ResponseEntity.ok(automacaoService.listar(restauranteId));
-    }
-
-    @PostMapping("/automacoes")
-    public ResponseEntity<AutomacaoMensagem> criarAutomacao(
-            @RequestHeader("X-Restaurante-Id") Long restauranteId,
-            @RequestBody Map<String, String> body) {
-        return ResponseEntity.status(201).body(
-            automacaoService.criar(restauranteId, body.get("acionador"), body.get("mensagem")));
-    }
-
-    @PutMapping("/automacoes/{id}")
-    public ResponseEntity<AutomacaoMensagem> atualizarAutomacao(
-            @RequestHeader("X-Restaurante-Id") Long restauranteId,
-            @PathVariable Long id,
-            @RequestBody Map<String, Object> body) {
-        Boolean ativo = body.get("ativo") instanceof Boolean b ? b : null;
-        return ResponseEntity.ok(automacaoService.atualizar(
-            restauranteId, id, (String) body.get("acionador"), (String) body.get("mensagem"), ativo));
-    }
-
-    @DeleteMapping("/automacoes/{id}")
-    public ResponseEntity<Void> removerAutomacao(
-            @RequestHeader("X-Restaurante-Id") Long restauranteId,
-            @PathVariable Long id) {
-        automacaoService.remover(restauranteId, id);
         return ResponseEntity.ok().build();
     }
 

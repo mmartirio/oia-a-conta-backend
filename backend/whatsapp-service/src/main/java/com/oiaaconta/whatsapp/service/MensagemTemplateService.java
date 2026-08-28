@@ -151,11 +151,14 @@ public class MensagemTemplateService {
                 ? custom.getOrdem()
                 : ORDENS_PADRAO.getOrDefault(chave, 99);
             String textoFinal = (custom != null) ? custom.getTexto() : padrao;
-            boolean personalizado = custom != null && !Objects.equals(custom.getTexto(), padrao);
+            String labelFinal = (custom != null && custom.getLabel() != null && !custom.getLabel().isBlank())
+                ? custom.getLabel() : e.getValue();
+            boolean personalizado = custom != null
+                && (!Objects.equals(custom.getTexto(), padrao) || !Objects.equals(labelFinal, e.getValue()));
             boolean ativo = custom == null || !Boolean.FALSE.equals(custom.getAtivo());
             result.add(MensagemTemplateDto.builder()
                 .chave(chave)
-                .label(e.getValue())
+                .label(labelFinal)
                 .texto(textoFinal)
                 .textoPadrao(padrao)
                 .personalizado(personalizado)
@@ -222,7 +225,7 @@ public class MensagemTemplateService {
     }
 
     @Transactional
-    public void salvar(Long restauranteId, String chave, String texto) {
+    public void salvar(Long restauranteId, String chave, String texto, String label) {
         MensagemTemplate t = repository.findByRestauranteIdAndChave(restauranteId, chave)
             .orElse(MensagemTemplate.builder()
                 .restauranteId(restauranteId)
@@ -230,6 +233,7 @@ public class MensagemTemplateService {
                 .ordem(ORDENS_PADRAO.get(chave))
                 .build());
         t.setTexto(texto);
+        if (label != null && !label.isBlank()) t.setLabel(label.trim());
         repository.save(t);
     }
 
@@ -259,6 +263,7 @@ public class MensagemTemplateService {
                 .orElse(MensagemTemplate.builder()
                     .restauranteId(restauranteId).chave(chave).build());
             t.setTexto(DEFAULTS.getOrDefault(chave, ""));
+            t.setLabel(null);
             t.setOrdem(ORDENS_PADRAO.getOrDefault(chave, 99));
             t.setAtivo(true);
             repository.save(t);
