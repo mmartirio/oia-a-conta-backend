@@ -4,6 +4,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.oiaaconta.auth.dto.request.LoginRequest;
 import com.oiaaconta.auth.dto.request.RegistroRequest;
+import com.oiaaconta.auth.client.BillingClient;
 import com.oiaaconta.auth.dto.response.AuthResponse;
 import com.oiaaconta.auth.entity.EmailVerificacao;
 import com.oiaaconta.auth.entity.Grupo;
@@ -18,6 +19,7 @@ import com.oiaaconta.auth.repository.RegistroPendenteRepository;
 import com.oiaaconta.auth.repository.RestauranteRepository;
 import com.oiaaconta.auth.repository.UsuarioRepository;
 import com.oiaaconta.auth.security.JwtUtil;
+import com.oiaaconta.auth.util.FuncionalidadePermissoes;
 import com.oiaaconta.auth.util.SlugUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +56,7 @@ public class AuthService {
     private final GoogleIdTokenVerifier googleIdTokenVerifier;
     private final AuditoriaService auditoriaService;
     private final LoginAttemptService loginAttemptService;
+    private final BillingClient billingClient;
 
     @Value("${evolution.api.url:http://oia-evolution:8080}")
     private String evolutionUrl;
@@ -404,7 +407,8 @@ public class AuthService {
     }
 
     private AuthResponse buildAuthResponse(Usuario usuario) {
-        String token = jwtUtil.generateToken(usuario);
+        java.util.Set<String> permissoes = permissoesEfetivas(usuario);
+        String token = jwtUtil.generateToken(usuario, permissoes);
         return AuthResponse.builder()
             .token(token)
             .usuario(AuthResponse.UsuarioDto.builder()
@@ -415,9 +419,29 @@ public class AuthService {
                 .restauranteId(usuario.getRestaurante() != null ? usuario.getRestaurante().getId() : null)
                 .ativo(usuario.isAtivo())
                 .grupoId(usuario.getGrupo() != null ? usuario.getGrupo().getId() : null)
-                .permissoes(usuario.getGrupo() != null ? usuario.getGrupo().getPermissoes() : null)
+                .permissoes(permissoes)
                 .build())
             .build();
+    }
+
+    // Permissões do grupo, restritas ao que o plano contratado do
+    // restaurante realmente inclui (ver FuncionalidadePermissoes) — usado
+    // tanto pro token quanto pelo GET /me, pra manter os dois em sincronia.
+    // Sem contrato/plano ou com o billing-service fora do ar, não bloqueia:
+    // devolve as permissões do grupo sem filtrar.
+    public java.util.Set<String> permissoesEfetivas(Usuario usuario) {
+        java.util.Set<String> permissoes = usuario.getGrupo() != null ? usuario.getGrupo().getPermissoes() : null;
+        if (permissoes == null || usuario.getRestaurante() == null) {
+            return permissoes;
+        }
+        try {
+            BillingClient.PlanoLimitesResponse limites = billingClient.buscarLimitesPlano(usuario.getRestaurante().getId());
+            return FuncionalidadePermissoes.aplicar(permissoes, limites.getFuncionalidades());
+        } catch (Exception e) {
+            log.warn("Não foi possível verificar recursos do plano do restaurante {}: {}",
+                usuario.getRestaurante().getId(), e.getMessage());
+            return permissoes;
+        }
     }
 
     private String generateSlug(String nome) {

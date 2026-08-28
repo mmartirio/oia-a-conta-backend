@@ -1,5 +1,6 @@
 package com.oiaaconta.billing.controller;
 
+import com.oiaaconta.billing.dto.response.PlanoLimitesResponse;
 import com.oiaaconta.billing.entity.Contrato;
 import com.oiaaconta.billing.service.BillingService;
 import lombok.RequiredArgsConstructor;
@@ -20,5 +21,12 @@ public class InternalContratoController {
         Long restauranteId = body.get("restauranteId");
         Long planoId = body.get("planoId");
         return ResponseEntity.status(201).body(billingService.criarContrato(restauranteId, planoId));
+    }
+
+    // Chamado por auth-service (aplicar funcionalidades do plano no login/me)
+    // e table-service (travar limite de mesas ao criar).
+    @GetMapping("/contratos/{restauranteId}/limites-plano")
+    public ResponseEntity<PlanoLimitesResponse> limitesPlano(@PathVariable Long restauranteId) {
+        return ResponseEntity.ok(billingService.buscarLimitesPlano(restauranteId));
     }
 }

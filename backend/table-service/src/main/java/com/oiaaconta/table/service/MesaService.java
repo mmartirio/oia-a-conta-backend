@@ -1,5 +1,6 @@
 package com.oiaaconta.table.service;
 
+import com.oiaaconta.table.client.BillingClient;
 import com.oiaaconta.table.dto.request.MesaRequest;
 import com.oiaaconta.table.dto.response.MesaResponse;
 import com.oiaaconta.table.entity.Mesa;
@@ -17,6 +18,7 @@ import java.util.List;
 public class MesaService {
 
     private final MesaRepository mesaRepository;
+    private final BillingClient billingClient;
 
     public List<MesaResponse> listar(Long restauranteId) {
         return mesaRepository.findByRestauranteIdOrderByNumeroAsc(restauranteId)
@@ -33,6 +35,7 @@ public class MesaService {
         if (mesaRepository.existsByRestauranteIdAndNumero(restauranteId, request.getNumero())) {
             throw new BusinessException("Mesa " + request.getNumero() + " já existe");
         }
+        verificarLimiteMesas(restauranteId);
         Mesa mesa = mesaRepository.save(Mesa.builder()
             .restauranteId(restauranteId)
             .numero(request.getNumero())
@@ -40,6 +43,22 @@ public class MesaService {
             .status(StatusMesa.DISPONIVEL)
             .build());
         return toResponse(mesa);
+    }
+
+    // Sem contrato/plano ou com o billing-service fora do ar, não bloqueia
+    // (best-effort) — mesma postura do limite de usuários no auth-service.
+    private void verificarLimiteMesas(Long restauranteId) {
+        Integer limite;
+        try {
+            limite = billingClient.buscarLimitesPlano(restauranteId).getLimiteMesas();
+        } catch (Exception e) {
+            return;
+        }
+        if (limite == null) return;
+        if (mesaRepository.countByRestauranteId(restauranteId) >= limite) {
+            throw new BusinessException(
+                "Limite de " + limite + " mesa(s) do plano contratado atingido. Faça upgrade do plano para adicionar mais mesas.");
+        }
     }
 
     public MesaResponse atualizar(Long restauranteId, Long id, MesaRequest request) {

@@ -11,4 +11,5 @@ public interface MesaRepository extends JpaRepository<Mesa, Long> {
     Optional<Mesa> findByIdAndRestauranteId(Long id, Long restauranteId);
     boolean existsByRestauranteIdAndNumero(Long restauranteId, Integer numero);
     Optional<Mesa> findByRestauranteIdAndNumero(Long restauranteId, Integer numero);
+    long countByRestauranteId(Long restauranteId);
 }

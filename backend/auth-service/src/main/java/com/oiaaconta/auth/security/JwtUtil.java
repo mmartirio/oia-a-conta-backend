@@ -27,6 +27,15 @@ public class JwtUtil {
     }
 
     public String generateToken(Usuario usuario) {
+        return generateToken(usuario, usuario.getGrupo() != null ? usuario.getGrupo().getPermissoes() : null);
+    }
+
+    // permissoesOverride existe pra AuthService poder passar o conjunto já
+    // filtrado pelos recursos do plano contratado (ver
+    // FuncionalidadePermissoes) em vez das permissões cruas do grupo — sem
+    // isso, um restaurante que perde uma funcionalidade do plano continuaria
+    // com acesso liberado até o token expirar por conta própria.
+    public String generateToken(Usuario usuario, java.util.Set<String> permissoesOverride) {
         var builder = Jwts.builder()
             .subject(usuario.getEmail())
             .claim("userId", usuario.getId())
@@ -39,7 +48,7 @@ public class JwtUtil {
         // serviço (ver JwtAuthFilter), em vez do role sozinho.
         if (usuario.getGrupo() != null) {
             builder.claim("grupoId", usuario.getGrupo().getId());
-            builder.claim("permissoes", usuario.getGrupo().getPermissoes());
+            builder.claim("permissoes", permissoesOverride != null ? permissoesOverride : usuario.getGrupo().getPermissoes());
         }
 
         return builder

@@ -1,5 +1,6 @@
 package com.oiaaconta.auth.service;
 
+import com.oiaaconta.auth.client.BillingClient;
 import com.oiaaconta.auth.dto.request.CriarSuperAdminRequest;
 import com.oiaaconta.auth.dto.request.UsuarioRequest;
 import com.oiaaconta.auth.dto.response.UsuarioResponse;
@@ -31,6 +32,7 @@ public class UsuarioService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final AuditoriaService auditoriaService;
+    private final BillingClient billingClient;
 
     public List<UsuarioResponse> listarPorRestaurante(@NonNull Long restauranteId) {
         return usuarioRepository.findByRestauranteIdAndAtivoTrue(restauranteId)
@@ -127,6 +129,7 @@ public class UsuarioService {
         if (request.getRole() == Role.SUPER_ADMIN) {
             throw new BusinessException("Não é permitido criar usuário SUPER_ADMIN");
         }
+        verificarLimiteUsuarios(restauranteId);
 
         Restaurante restaurante = restauranteRepository.findById(restauranteId)
             .orElseThrow(() -> new ResourceNotFoundException("Restaurante não encontrado"));
@@ -148,6 +151,24 @@ public class UsuarioService {
             usuario.getId(), usuario.getNome());
 
         return toResponse(usuario);
+    }
+
+    // Sem contrato/plano ou com o billing-service fora do ar, não bloqueia
+    // (best-effort) — o dono do restaurante não pode ficar impedido de criar
+    // usuário por uma falha de infraestrutura alheia à conta dele.
+    private void verificarLimiteUsuarios(Long restauranteId) {
+        Integer limite;
+        try {
+            limite = billingClient.buscarLimitesPlano(restauranteId).getLimiteUsuarios();
+        } catch (Exception e) {
+            return;
+        }
+        if (limite == null) return;
+        long ativos = usuarioRepository.findByRestauranteIdAndAtivoTrue(restauranteId).size();
+        if (ativos >= limite) {
+            throw new BusinessException(
+                "Limite de " + limite + " usuário(s) do plano contratado atingido. Faça upgrade do plano para adicionar mais usuários.");
+        }
     }
 
     public UsuarioResponse atualizar(@NonNull Long restauranteId, @NonNull Long id, UsuarioRequest request) {

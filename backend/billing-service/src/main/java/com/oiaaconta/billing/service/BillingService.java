@@ -122,6 +122,21 @@ public class BillingService {
             .orElseThrow(() -> new NoSuchElementException("Contrato não encontrado"));
     }
 
+    // Chamado por auth-service (login/me) e table-service (criar mesa) pra
+    // aplicar os recursos do plano contratado — funcionalidades liberadas e
+    // limites de usuários/mesas. Sem contrato encontrado, devolve tudo null
+    // (sem restrição) em vez de erro — não deve bloquear login/uso por causa
+    // de uma conta sem contrato associado.
+    public com.oiaaconta.billing.dto.response.PlanoLimitesResponse buscarLimitesPlano(Long restauranteId) {
+        return contratoRepository.findByRestauranteId(restauranteId)
+            .map(c -> com.oiaaconta.billing.dto.response.PlanoLimitesResponse.builder()
+                .funcionalidades(c.getPlano().getFuncionalidades())
+                .limiteUsuarios(c.getPlano().getLimiteUsuarios())
+                .limiteMesas(c.getPlano().getLimiteMesas())
+                .build())
+            .orElse(com.oiaaconta.billing.dto.response.PlanoLimitesResponse.builder().build());
+    }
+
     @Transactional
     @SuppressWarnings("null")
     public Contrato criarContrato(Long restauranteId, Long planoId) {

@@ -91,7 +91,7 @@ public class AuthController {
             .createdAt(usuario.getCreatedAt())
             .grupoId(usuario.getGrupo() != null ? usuario.getGrupo().getId() : null)
             .grupoNome(usuario.getGrupo() != null ? usuario.getGrupo().getNome() : null)
-            .permissoes(usuario.getGrupo() != null ? usuario.getGrupo().getPermissoes() : null)
+            .permissoes(authService.permissoesEfetivas(usuario))
             .build());
     }
 }
