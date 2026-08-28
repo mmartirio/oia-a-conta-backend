@@ -1,5 +1,6 @@
 package com.oiaaconta.auth.service;
 
+import com.oiaaconta.auth.dto.request.CriarSuperAdminRequest;
 import com.oiaaconta.auth.dto.request.UsuarioRequest;
 import com.oiaaconta.auth.dto.response.UsuarioResponse;
 import com.oiaaconta.auth.entity.Grupo;
@@ -47,7 +48,7 @@ public class UsuarioService {
     }
 
     @SuppressWarnings("null")
-    public UsuarioResponse criarSuperAdmin(UsuarioRequest request) {
+    public UsuarioResponse criarSuperAdmin(CriarSuperAdminRequest request) {
         if (usuarioRepository.existsByEmail(request.getEmail())) {
             throw new BusinessException("E-mail já cadastrado");
         }

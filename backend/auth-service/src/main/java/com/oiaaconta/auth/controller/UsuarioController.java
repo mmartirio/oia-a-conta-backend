@@ -1,5 +1,6 @@
 package com.oiaaconta.auth.controller;
 
+import com.oiaaconta.auth.dto.request.CriarSuperAdminRequest;
 import com.oiaaconta.auth.dto.request.UsuarioRequest;
 import com.oiaaconta.auth.dto.response.UsuarioResponse;
 import com.oiaaconta.auth.service.UsuarioService;
@@ -83,7 +84,7 @@ public class UsuarioController {
 
     @PostMapping("/super-admins")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<UsuarioResponse> criarSuperAdmin(@Valid @RequestBody UsuarioRequest request) {
+    public ResponseEntity<UsuarioResponse> criarSuperAdmin(@Valid @RequestBody CriarSuperAdminRequest request) {
         return ResponseEntity.status(201).body(usuarioService.criarSuperAdmin(request));
     }
 
