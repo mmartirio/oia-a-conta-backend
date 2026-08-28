@@ -73,15 +73,15 @@ public class ChatbotService {
     // escrita (sessaoRepo.save(...)) permanecem, cada um cobrindo uma
     // transação curta e própria (Spring Data abre/fecha uma por chamada).
     @Async
-    public void processarMensagem(String telefone, String texto, Long restauranteId, String pushName) {
+    public void processarMensagem(String telefone, String texto, Long restauranteId, String pushName, String numeroRealAlt) {
         Object lock = locksPorTelefone.computeIfAbsent(telefone + '|' + restauranteId, k -> new Object());
         synchronized (lock) {
-            processarMensagemSincronizado(telefone, texto, restauranteId, pushName);
+            processarMensagemSincronizado(telefone, texto, restauranteId, pushName, numeroRealAlt);
         }
     }
 
     @SuppressWarnings("null")
-    private void processarMensagemSincronizado(String telefone, String texto, Long restauranteId, String pushName) {
+    private void processarMensagemSincronizado(String telefone, String texto, Long restauranteId, String pushName, String numeroRealAlt) {
         if (texto == null || texto.isBlank()) return;
         String textoLimpo = texto.trim().toLowerCase();
 
@@ -92,14 +92,20 @@ public class ChatbotService {
                 .estado(EstadoSessao.INICIO)
                 .build());
 
+        // O WhatsApp já manda o número de verdade do contato "@lid" (ver
+        // WebhookController) — evita perguntar de novo se já sabemos.
+        boolean numeroRealNovo = numeroRealAlt != null && !numeroRealAlt.isBlank() && sessao.getNumeroReal() == null;
+        if (numeroRealNovo) sessao.setNumeroReal(numeroRealAlt);
+
         // Atualiza o nome de exibição com o nome de perfil do WhatsApp (pushName)
         // sempre que ele vier preenchido, independente do estado da conversa —
         // assim o painel mostra o nome do contato em vez do id "@lid" cru
         // mesmo antes do fluxo do chatbot chegar a perguntar o nome/número.
         // Salva na hora (não só no final do método) porque alguns caminhos
         // abaixo retornam cedo sem chegar ao sessaoRepo.save(sessao) final.
-        if (pushName != null && !pushName.isBlank() && !pushName.trim().equals(sessao.getClienteNome())) {
-            sessao.setClienteNome(pushName.trim());
+        boolean nomeNovo = pushName != null && !pushName.isBlank() && !pushName.trim().equals(sessao.getClienteNome());
+        if (nomeNovo) sessao.setClienteNome(pushName.trim());
+        if (numeroRealNovo || nomeNovo) {
             sessao = sessaoRepo.save(sessao);
         }
 

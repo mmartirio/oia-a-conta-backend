@@ -152,6 +152,12 @@ public class EvolutionApiClient {
             @Data
             public static class KeyPayload {
                 private String remoteJid;
+                // Multi-device manda o contato como "@lid" (id interno, não é o
+                // número) mas junto vem remoteJidAlt com o JID "de verdade"
+                // (@s.whatsapp.net) — sem ler isso, o bot sempre teria que
+                // perguntar o número ao cliente mesmo quando o WhatsApp já
+                // manda ele pronto (ver WebhookController).
+                private String remoteJidAlt;
                 private boolean fromMe;
                 private String id;
             }

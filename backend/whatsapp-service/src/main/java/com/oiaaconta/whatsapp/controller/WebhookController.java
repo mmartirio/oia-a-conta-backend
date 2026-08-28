@@ -69,8 +69,17 @@ public class WebhookController {
                 return ResponseEntity.ok().build();
             }
             // @lid: novo formato multi-device — mantém o JID completo como identificador
+            String numeroReal = null;
             if (!telefone.endsWith("@lid")) {
                 telefone = telefone.replace("@s.whatsapp.net", "");
+            } else {
+                // O WhatsApp manda o número de verdade junto, em remoteJidAlt —
+                // sem isso o chatbot teria que perguntar o número ao cliente
+                // mesmo quando ele já veio pronto (ver ChatbotService).
+                String alt = data.getKey().getRemoteJidAlt();
+                if (alt != null && alt.endsWith("@s.whatsapp.net")) {
+                    numeroReal = alt.replace("@s.whatsapp.net", "");
+                }
             }
 
             String texto = data.getMessage() != null ? data.getMessage().getText() : null;
@@ -96,7 +105,7 @@ public class WebhookController {
                 return ResponseEntity.ok().build();
             }
 
-            chatbotService.processarMensagem(telefone, texto, restauranteId, pushName);
+            chatbotService.processarMensagem(telefone, texto, restauranteId, pushName, numeroReal);
 
         } catch (Exception e) {
             log.error("Erro ao processar webhook: {}", e.getMessage(), e);
