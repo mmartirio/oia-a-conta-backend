@@ -32,10 +32,13 @@ public class WebhookController {
     @Value("${evolution.webhook.secret:}")
     private String webhookSecret;
 
-    // Mesmo padrão usado por WhatsappAdminService.resolverInstancia quando
-    // restauranteId é null — é a instância da plataforma (suporte), não de um
-    // restaurante específico.
-    @Value("${evolution.api.instance:oiaaconta}")
+    // Instância dedicada da linha de suporte da plataforma — NÃO é a mesma
+    // property de evolution.api.instance (essa é usada pelo
+    // EvolutionApiClient pra enviar mensagem e hoje aponta pro único número
+    // conectado, que é de um restaurante). Sem valor configurado (vazio),
+    // nunca bate com o nome de instância de nenhum restaurante, então
+    // nenhuma mensagem cai indevidamente no fluxo de ticket.
+    @Value("${evolution.plataforma.instance:}")
     private String instanciaPlataforma;
 
     @PostMapping("/evolution")
@@ -75,7 +78,7 @@ public class WebhookController {
 
             String pushName = data.getPushName();
 
-            if (instanciaPlataforma.equals(payload.getInstance())) {
+            if (StringUtils.hasText(instanciaPlataforma) && instanciaPlataforma.equals(payload.getInstance())) {
                 try {
                     billingClient.registrarMensagemTicket(Map.of(
                         "telefone", telefone,

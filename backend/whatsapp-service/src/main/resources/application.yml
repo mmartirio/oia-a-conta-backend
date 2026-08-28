@@ -39,6 +39,13 @@ evolution:
     url: ${EVOLUTION_API_URL:http://localhost:8087}
     key: ${EVOLUTION_API_KEY:oia_evolution_key_2024}
     instance: ${EVOLUTION_INSTANCE_NAME:oiaaconta}
+  # Instância dedicada da linha de suporte da plataforma (Gestor > WhatsApp) —
+  # separada de evolution.api.instance (usada pelo EvolutionApiClient pra
+  # ENVIAR mensagem, hoje um único número compartilhado). Sem valor
+  # configurado, nenhuma mensagem recebida é tratada como suporte da
+  # plataforma — evita colidir com a instância de algum restaurante.
+  plataforma:
+    instance: ${EVOLUTION_PLATAFORMA_INSTANCE:}
   webhook:
     url: ${EVOLUTION_WEBHOOK_URL:http://localhost:8090/webhook/evolution}
     secret: ${EVOLUTION_WEBHOOK_SECRET:}
