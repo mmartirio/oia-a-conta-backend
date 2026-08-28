@@ -26,6 +26,7 @@ public class MensagemTemplateService {
         put("CHATBOT_PEDIDO_ENVIADO",        "chatbot");
         put("CHATBOT_CANCELADO",             "chatbot");
         put("CHATBOT_JA_ENVIADO",            "chatbot");
+        put("CHATBOT_FECHADO",               "chatbot");
         put("PEDIDO_ACEITO",                 "notificacao");
         put("PEDIDO_PRONTO",                 "notificacao");
         put("PEDIDO_SAIU",                   "notificacao");
@@ -45,6 +46,7 @@ public class MensagemTemplateService {
         put("CHATBOT_PEDIDO_ENVIADO",        "Pedido enviado com sucesso");
         put("CHATBOT_CANCELADO",             "Pedido cancelado pelo cliente");
         put("CHATBOT_JA_ENVIADO",            "Pedido já foi enviado (novo contato)");
+        put("CHATBOT_FECHADO",               "Loja fechada (fora do horário/pausa)");
         put("PEDIDO_ACEITO",                 "Pedido Aceito");
         put("PEDIDO_PRONTO",                 "Pedido Pronto para Entrega");
         put("PEDIDO_SAIU",                   "Pedido Saiu para Entrega");
@@ -73,6 +75,8 @@ public class MensagemTemplateService {
             "Pedido cancelado. Digite qualquer coisa para iniciar um novo pedido.");
         put("CHATBOT_JA_ENVIADO",
             "Seu pedido já foi enviado! Aguarde as atualizações. Digite *cancelar* para um novo pedido.");
+        put("CHATBOT_FECHADO",
+            "😴 No momento estamos fechados.\n\n{MOTIVO}\n\nAssim que abrirmos, é só mandar outra mensagem que a gente te atende!");
         put("PEDIDO_ACEITO",    "✅ Seu pedido foi aceito! Estamos preparando tudo para você. 🍳");
         put("PEDIDO_PRONTO",    "🎉 Seu pedido está pronto! O entregador vai buscá-lo em breve.");
         put("PEDIDO_SAIU",      "🛵 Seu pedido saiu para entrega! O entregador está a caminho.");
@@ -88,6 +92,7 @@ public class MensagemTemplateService {
         put("CHATBOT_PEDIDO_ENVIADO",    "Variável disponível: {PEDIDO_ID}");
         put("PEDIDO_PIX",                "Variáveis disponíveis: {PIX_CHAVE}, {VALOR}");
         put("PEDIDO_REJEITADO",          "Variável disponível: {MOTIVO}");
+        put("CHATBOT_FECHADO",           "Variável disponível: {MOTIVO}");
     }};
 
     private static final Map<String, Integer> ORDENS_PADRAO = new LinkedHashMap<>() {{
@@ -100,6 +105,7 @@ public class MensagemTemplateService {
         put("CHATBOT_PEDIDO_ENVIADO",    70);
         put("CHATBOT_CANCELADO",         80);
         put("CHATBOT_JA_ENVIADO",        90);
+        put("CHATBOT_FECHADO",          100);
         put("PEDIDO_ACEITO",             10);
         put("PEDIDO_PRONTO",             20);
         put("PEDIDO_SAIU",               30);

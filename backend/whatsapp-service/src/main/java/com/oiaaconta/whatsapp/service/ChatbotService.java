@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -117,6 +118,21 @@ public class ChatbotService {
                 sessaoRepo.save(sessao);
                 enviar(telefone, "Atendimento automatico reativado! Como posso te ajudar?", restauranteId);
             }
+            return;
+        }
+
+        // Loja fechada (fora do horário, pausa programada ou fechamento
+        // manual) — responde avisando e encerra a conversa (reseta pra
+        // INICIO) em vez de deixar a sessão parada num estado do fluxo de
+        // pedido. Assim, a PRÓXIMA mensagem do cliente é tratada como um
+        // contato novo e checa o status de novo — se reabriu, segue o fluxo
+        // normal; se continua fechado, recebe o aviso de novo.
+        OrderClient.StatusFuncionamentoResponse statusLoja = consultarStatusLoja(restauranteId);
+        if (statusLoja != null && !statusLoja.isAberto()) {
+            resetarSessao(sessao);
+            sessaoRepo.save(sessao);
+            enviar(telefone, mensagemService.resolverTexto(restauranteId, "CHATBOT_FECHADO",
+                Map.of("MOTIVO", motivoFechado(statusLoja))), restauranteId);
             return;
         }
 
@@ -550,6 +566,33 @@ public class ChatbotService {
         s.setEstado(EstadoSessao.COLETANDO_PEDIDO_CHAT);
         s.setLembreteCardapioEnviado(true);
         sessaoRepo.save(s);
+    }
+
+    // Best-effort: se order-service estiver fora do ar ou a chamada falhar,
+    // não bloqueia o atendimento — trata como se estivesse aberto (null),
+    // igual à postura das outras integrações externas deste serviço.
+    private OrderClient.StatusFuncionamentoResponse consultarStatusLoja(Long restauranteId) {
+        try {
+            return orderClient.statusFuncionamento(restauranteId);
+        } catch (Exception e) {
+            log.warn("Falha ao consultar status de funcionamento do restaurante {}: {}", restauranteId, e.getMessage());
+            return null;
+        }
+    }
+
+    private String motivoFechado(OrderClient.StatusFuncionamentoResponse status) {
+        String motivo = status.getMotivo() != null && !status.getMotivo().isBlank()
+            ? status.getMotivo()
+            : "No momento não estamos atendendo.";
+        if (status.getReaberturaPrevista() != null && !status.getReaberturaPrevista().isBlank()) {
+            try {
+                LocalDateTime reabertura = LocalDateTime.parse(status.getReaberturaPrevista());
+                motivo += " Reabrimos " + reabertura.format(DateTimeFormatter.ofPattern("dd/MM 'às' HH:mm")) + ".";
+            } catch (Exception ignored) {
+                // formato inesperado — mostra só o motivo, sem a data de reabertura
+            }
+        }
+        return motivo;
     }
 
     private void resetarSessao(SessaoWhatsapp s) {

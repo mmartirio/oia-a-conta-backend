@@ -3,9 +3,11 @@ package com.oiaaconta.whatsapp.client;
 import lombok.Builder;
 import lombok.Data;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -18,6 +20,19 @@ public interface OrderClient {
         @RequestHeader("X-Restaurante-Id") Long restauranteId,
         @RequestBody EntregaRequest request
     );
+
+    // Mesmo endpoint público usado pelo cardápio público (sem X-Restaurante-Id
+    // — vai por query param) pra saber se a loja está aberta antes de deixar
+    // o chatbot seguir o fluxo normal (ver ChatbotService).
+    @GetMapping("/api/configuracoes/pausas/status")
+    StatusFuncionamentoResponse statusFuncionamento(@RequestParam("restauranteId") Long restauranteId);
+
+    @Data
+    class StatusFuncionamentoResponse {
+        private boolean aberto;
+        private String motivo;
+        private String reaberturaPrevista;
+    }
 
     @Data
     @Builder
