@@ -33,6 +33,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         "/api/auth/reenviar-codigo",
         "/api/auth/publico",
         "/api/planos",
+        "/api/links-sociais",
         "/api/catalog/publico",
         "/api/whatsapp/publico",
         "/api/configuracoes/pausas/status",
