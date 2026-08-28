@@ -6,6 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -19,6 +20,7 @@ import java.io.IOException;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
@@ -56,15 +58,25 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             // loadUserByUsername) como fonte de verdade — mais autoritativo até
             // que o claim do token, porque reflete o estado atual (ex: grupo
             // trocado depois do token emitido), não o que valia na emissão.
-            var usuarioOpt = usuarioRepository.findByEmail(email);
-            if (usuarioOpt.isPresent()) {
-                var usuario = usuarioOpt.get();
-                String roleHeader = usuario.getGrupo() != null
-                    ? String.join(",", PermissaoRoles.derivar(usuario.getGrupo().getPermissoes()))
-                    : usuario.getRole().name();
-                Long restauranteId = usuario.getRestaurante() != null ? usuario.getRestaurante().getId() : null;
-                request = new IdentidadeVerificadaRequest(
-                    request, usuario.getId(), restauranteId, usuario.getNome(), roleHeader);
+            //
+            // Roda fora de um @Transactional (é um Filter puro — self-invocation
+            // de OncePerRequestFilter.doFilter não passa pelo proxy Spring, então
+            // @Transactional aqui não teria efeito), então usuario.getGrupo()
+            // precisa já vir carregado por findByEmail (ver @EntityGraph no
+            // repository) — senão é LazyInitializationException na certa.
+            try {
+                var usuarioOpt = usuarioRepository.findByEmail(email);
+                if (usuarioOpt.isPresent()) {
+                    var usuario = usuarioOpt.get();
+                    String roleHeader = usuario.getGrupo() != null
+                        ? String.join(",", PermissaoRoles.derivar(usuario.getGrupo().getPermissoes()))
+                        : usuario.getRole().name();
+                    Long restauranteId = usuario.getRestaurante() != null ? usuario.getRestaurante().getId() : null;
+                    request = new IdentidadeVerificadaRequest(
+                        request, usuario.getId(), restauranteId, usuario.getNome(), roleHeader);
+                }
+            } catch (Exception e) {
+                log.error("Falha ao revalidar identidade de {} — seguindo com os headers originais: {}", email, e.getMessage(), e);
             }
         }
 
