@@ -110,6 +110,11 @@ services:
       # Mesmo Client ID OAuth do frontend (VITE_GOOGLE_CLIENT_ID) — usado pra
       # validar o "audience" do ID token no login social.
       GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+      # Sem isso, o /actuator/health agrega o indicador de e-mail: se o SMTP
+      # não estiver configurado (GMAIL_APP_PASSWORD vazio), o health fica DOWN
+      # e derruba o healthcheck do container — travando toda a cadeia de
+      # depends_on (billing-service, api-gateway) mesmo com o serviço no ar.
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
     # Sem porta pro host — só alcançável via api-gateway.
     depends_on:
       postgres:
@@ -445,7 +450,7 @@ services:
       TZ: America/Sao_Paulo
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://localhost:80,http://localhost:3000}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://localhost:80,http://localhost:3000,https://oiaaconta.com.br,https://*.oiaaconta.com.br}
     ports:
       - "8090:8080"
     depends_on:
