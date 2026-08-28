@@ -432,6 +432,15 @@ public class ChatbotService {
     }
 
     private void processarNumeroLid(SessaoWhatsapp s, String texto, String pushName) {
+        // O número já pode ter sido identificado automaticamente (via
+        // remoteJidAlt, ver processarMensagemSincronizado) numa mensagem
+        // mais recente que a que colocou a sessão nesse estado — nesse caso
+        // segue o fluxo normal em vez de tentar reinterpretar o texto atual
+        // (que pode ser qualquer mensagem do cliente) como número digitado.
+        if (s.getNumeroReal() != null) {
+            processarInicio(s, pushName);
+            return;
+        }
         String digitos = texto.replaceAll("\\D", "");
         if (digitos.length() < 10 || digitos.length() > 11) {
             throw new EntradaInvalidaException(
