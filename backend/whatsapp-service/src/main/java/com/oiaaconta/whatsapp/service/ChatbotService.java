@@ -40,6 +40,7 @@ public class ChatbotService {
     private final WhatsappConfigService whatsappConfigService;
     private final CatalogClient catalogClient;
     private final OllamaClient ollamaClient;
+    private final AutomacaoMensagemService automacaoMensagemService;
 
     @Value("${app.frontend-base-url:http://localhost}")
     private String frontendBaseUrl;
@@ -154,6 +155,15 @@ public class ChatbotService {
             sessao.setEstado(EstadoSessao.PAUSADO);
             sessaoRepo.save(sessao);
             enviar(telefone, "Ok! Um atendente ira responder em breve.\n\nQuando quiser retornar ao atendimento automatico, digite *retomar bot*.", restauranteId);
+            return;
+        }
+
+        // Respostas automáticas configuradas pelo admin (ex: acionador "Quero
+        // ver mais opções") — responde a pergunta sem alterar o estado da
+        // conversa, pra não atrapalhar um pedido em andamento.
+        var automacao = automacaoMensagemService.encontrarPorAcionador(restauranteId, textoLimpo);
+        if (automacao.isPresent()) {
+            enviar(telefone, automacao.get().getMensagem(), restauranteId);
             return;
         }
 
