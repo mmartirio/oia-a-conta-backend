@@ -24,6 +24,7 @@ import java.util.List;
 public class MensagemWhatsappService {
 
     private static final int TEXTO_MAX_LENGTH = 2000;
+    private static final int JANELA_DEDUP_SEGUNDOS = 20;
 
     private final MensagemWhatsappRepository mensagemRepo;
     private final SessaoWhatsappRepository sessaoRepo;
@@ -56,6 +57,23 @@ public class MensagemWhatsappService {
         } catch (Exception e) {
             log.warn("Falha ao notificar mensagem WhatsApp em tempo real: {}", e.getMessage());
         }
+    }
+
+    // Chamado pelo webhook quando o Evolution manda o espelho "fromMe" de uma
+    // mensagem enviada pelo restaurante. Pode ser (a) a mesma mensagem que o
+    // painel/bot já mandou e registrou na hora via registrar() acima, ou (b)
+    // uma mensagem mandada direto do celular, fora do painel — que sem isso
+    // nunca aparecia no histórico de Conversas. A checagem por texto+telefone
+    // numa janela curta evita duplicar quando é o caso (a).
+    @Transactional
+    public void registrarEnviadaSeNova(Long restauranteId, String telefone, String texto) {
+        if (texto == null || texto.isBlank()) return;
+        String textoTruncado = texto.length() > TEXTO_MAX_LENGTH ? texto.substring(0, TEXTO_MAX_LENGTH) : texto;
+        LocalDateTime desde = LocalDateTime.now().minusSeconds(JANELA_DEDUP_SEGUNDOS);
+        boolean jaRegistrada = mensagemRepo.existsByRestauranteIdAndTelefoneAndDirecaoAndTextoAndCriadoEmAfter(
+            restauranteId, telefone, DirecaoMensagem.ENVIADA, textoTruncado, desde);
+        if (jaRegistrada) return;
+        registrar(restauranteId, telefone, DirecaoMensagem.ENVIADA, texto);
     }
 
     public List<ConversaResumoResponse> listarConversas(Long restauranteId) {

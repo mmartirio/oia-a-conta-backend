@@ -9,12 +9,19 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface MensagemWhatsappRepository extends JpaRepository<MensagemWhatsapp, Long> {
 
     Page<MensagemWhatsapp> findByRestauranteIdAndTelefoneOrderByCriadoEmAsc(
         Long restauranteId, String telefone, Pageable pageable);
+
+    // Deduplicação do espelho "fromMe" do webhook contra o que o
+    // painel/bot já registrou na hora do envio (ver
+    // MensagemWhatsappService.registrarEnviadaSeNova).
+    boolean existsByRestauranteIdAndTelefoneAndDirecaoAndTextoAndCriadoEmAfter(
+        Long restauranteId, String telefone, DirecaoMensagem direcao, String texto, LocalDateTime desde);
 
     @Query("""
         SELECT COUNT(DISTINCT m.telefone) FROM MensagemWhatsapp m

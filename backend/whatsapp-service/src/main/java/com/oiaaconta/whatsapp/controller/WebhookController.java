@@ -5,6 +5,7 @@ import com.oiaaconta.whatsapp.client.AuthClient;
 import com.oiaaconta.whatsapp.client.BillingClient;
 import com.oiaaconta.whatsapp.client.EvolutionApiClient.WebhookPayload;
 import com.oiaaconta.whatsapp.service.ChatbotService;
+import com.oiaaconta.whatsapp.service.MensagemWhatsappService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +28,7 @@ public class WebhookController {
     private final ChatbotService chatbotService;
     private final AuthClient authClient;
     private final BillingClient billingClient;
+    private final MensagemWhatsappService mensagemWhatsappService;
     private final ObjectMapper objectMapper;
 
     @Value("${evolution.webhook.secret:}")
@@ -60,7 +62,7 @@ public class WebhookController {
 
             WebhookPayload.DataPayload data = payload.getData();
             if (data == null || data.getKey() == null) return ResponseEntity.ok().build();
-            if (data.getKey().isFromMe()) return ResponseEntity.ok().build();
+            boolean fromMe = data.getKey().isFromMe();
 
             String telefone = data.getKey().getRemoteJid();
             if (telefone == null) return ResponseEntity.ok().build();
@@ -88,6 +90,7 @@ public class WebhookController {
             String pushName = data.getPushName();
 
             if (StringUtils.hasText(instanciaPlataforma) && instanciaPlataforma.equals(payload.getInstance())) {
+                if (fromMe) return ResponseEntity.ok().build();
                 try {
                     billingClient.registrarMensagemTicket(Map.of(
                         "telefone", telefone,
@@ -102,6 +105,15 @@ public class WebhookController {
             Long restauranteId = resolverRestauranteId(payload.getInstance());
             if (restauranteId == null) {
                 log.warn("Instância '{}' não mapeada para nenhum restaurante — mensagem ignorada", payload.getInstance());
+                return ResponseEntity.ok().build();
+            }
+
+            if (fromMe) {
+                // Mensagem enviada pelo restaurante — pelo painel/bot (já
+                // registrada na hora do envio) ou direto do celular, fora do
+                // sistema. Sem isso, uma resposta mandada direto do WhatsApp
+                // do celular nunca aparecia no histórico de Conversas.
+                mensagemWhatsappService.registrarEnviadaSeNova(restauranteId, telefone, texto);
                 return ResponseEntity.ok().build();
             }
 
