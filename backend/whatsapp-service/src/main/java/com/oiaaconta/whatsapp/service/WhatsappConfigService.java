@@ -11,8 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class WhatsappConfigService {
 
-    // ~1MB de imagem original vira ~1,2M de caracteres em base64.
-    private static final int IMAGEM_MAX_CHARS = 1_200_000;
+    // ~2MB de imagem original vira ~2,8M de caracteres em base64.
+    private static final int IMAGEM_MAX_CHARS = 2_800_000;
 
     private final WhatsappConfigRepository configRepository;
 
@@ -45,7 +45,7 @@ public class WhatsappConfigService {
         if (valor != null) {
             ImagemValidator.validar(valor);
             if (valor.length() > IMAGEM_MAX_CHARS) {
-                throw new IllegalArgumentException("Imagem muito grande. Envie um arquivo menor (até ~1MB).");
+                throw new IllegalArgumentException("Imagem muito grande. Envie um arquivo menor (até ~2MB).");
             }
         }
         WhatsappConfig config = configRepository.findByRestauranteId(restauranteId)
