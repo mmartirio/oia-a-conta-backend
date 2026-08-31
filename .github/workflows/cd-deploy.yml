@@ -94,7 +94,12 @@ jobs:
           script: |
             cd /opt/oia-a-conta-backend
             git pull origin main
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" > .env
+            touch .env
+            if grep -q '^JWT_SECRET=' .env; then
+              sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${{ secrets.JWT_SECRET }}|" .env
+            else
+              echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            fi
             docker compose pull
             docker compose build
             docker compose up -d --remove-orphans

@@ -18,6 +18,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/webhook")
@@ -43,6 +44,23 @@ public class WebhookController {
     @Value("${evolution.plataforma.instance:}")
     private String instanciaPlataforma;
 
+    // Evolution API pode reentregar o mesmo webhook (timeout, retry de rede)
+    // — sem isso, uma mensagem "Oi" reprocessada faz o chatbot avançar a
+    // máquina de estado de novo, gerando trocas fantasma no histórico (ex:
+    // um "Número inválido" que nunca correspondeu a nada de real no
+    // WhatsApp). O id da mensagem (key.id) é estável e único, então serve
+    // de chave de deduplicação; janela curta porque reentregas acontecem em
+    // segundos, não em minutos.
+    private static final long JANELA_DEDUP_WEBHOOK_MS = 5 * 60_000;
+    private final Map<String, Long> mensagensRecentes = new ConcurrentHashMap<>();
+
+    private boolean jaProcessada(String messageId) {
+        if (!StringUtils.hasText(messageId)) return false;
+        long agora = System.currentTimeMillis();
+        mensagensRecentes.entrySet().removeIf(e -> agora - e.getValue() > JANELA_DEDUP_WEBHOOK_MS);
+        return mensagensRecentes.putIfAbsent(messageId, agora) != null;
+    }
+
     @PostMapping("/evolution")
     public ResponseEntity<Void> receber(
             @RequestHeader(value = "X-Evolution-Signature", required = false) String signature,
@@ -62,6 +80,12 @@ public class WebhookController {
 
             WebhookPayload.DataPayload data = payload.getData();
             if (data == null || data.getKey() == null) return ResponseEntity.ok().build();
+
+            if (jaProcessada(data.getKey().getId())) {
+                log.debug("Webhook reentregue ignorado (id já processado): {}", data.getKey().getId());
+                return ResponseEntity.ok().build();
+            }
+
             boolean fromMe = data.getKey().isFromMe();
 
             String telefone = data.getKey().getRemoteJid();
