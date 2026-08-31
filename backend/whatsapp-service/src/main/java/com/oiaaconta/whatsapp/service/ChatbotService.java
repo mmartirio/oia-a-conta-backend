@@ -557,7 +557,7 @@ public class ChatbotService {
         enviar(telefone, mensagem, restauranteId);
     }
 
-    private static final int MINUTOS_LEMBRETE_CARDAPIO = 10;
+    private static final int MINUTOS_LEMBRETE_CARDAPIO = 5;
 
     // Varredura periódica (não precisa ser exata ao minuto — fixedDelay conta
     // a partir do fim da execução anterior, então não empilha se uma
