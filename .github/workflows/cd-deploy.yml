@@ -92,9 +92,10 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            cd /opt/comanda-digital
+            cd /opt/oia-a-conta-backend
             git pull origin main
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" > .env
             docker compose pull
+            docker compose build
             docker compose up -d --remove-orphans
             docker system prune -f
