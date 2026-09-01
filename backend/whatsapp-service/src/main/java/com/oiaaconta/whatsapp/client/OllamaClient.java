@@ -116,7 +116,10 @@ public class OllamaClient {
 
             Regras: só inclua em "itens" produtos que você reconheceu com confiança no cardápio acima; "quantidade" é sempre obrigatório (use 1 se a mensagem não deixar claro quantas unidades); se não identificar endereço ou forma de pagamento nessa mensagem, use null nesses campos (não repita o que já foi informado antes).
 
-            "itensNaoReconhecidos": se a mensagem parecer estar pedindo um produto mas o nome usado for genérico ou ambíguo demais pra resolver com confiança pra um produtoId específico (ex: cliente pediu "um refrigerante" e o cardápio só tem "Coca-cola lata" e "Guaraná lata" — nenhum se chama literalmente "refrigerante"), inclua o trecho exato que o cliente usou nessa lista, em vez de chutar um produtoId. Se não houver nenhum caso assim, use uma lista vazia [].
+            "itensNaoReconhecidos": se a mensagem parecer estar pedindo um produto mas o nome usado for genérico ou ambíguo demais pra resolver com confiança pra um produtoId específico (ex: cliente pediu "um refrigerante" e o cardápio só tem "Coca-cola lata" e "Guaraná lata" — nenhum se chama literalmente "refrigerante"), inclua APENAS a palavra ou expressão ambígua nessa lista — nunca a mensagem inteira. Se não houver nenhum caso assim, use uma lista vazia [].
+            Exemplo (cardápio só com "Coca-cola lata" e "Guaraná lata" como bebidas): mensagem "quero 1 carne e 1 refrigerante" deve virar:
+            {"itens":[{"produtoId":2,"quantidade":1}],"endereco":null,"formaPagamento":null,"itensNaoReconhecidos":["refrigerante"]}
+            (repare que "itensNaoReconhecidos" tem só a palavra "refrigerante", não a frase toda — o item "carne" foi resolvido normalmente e NÃO entra nessa lista.)
             """.formatted(cardapioTexto, enderecoAtual, pagamentoAtual, mensagemCliente);
     }
 
