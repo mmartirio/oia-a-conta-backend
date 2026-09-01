@@ -70,6 +70,12 @@ public class ComboService {
         combo.setNumeroCardapio(request.getNumeroCardapio());
         comboRepository.save(combo);
         comboItemRepository.deleteByComboId(id);
+        // ComboItem usa IDENTITY, então o INSERT de salvarItens roda na hora
+        // (não dá pra adiar até o commit) — sem o flush aqui, o DELETE acima
+        // ainda não tinha sido de fato executado no banco, e reinserir um
+        // item que já estava no combo batia na constraint única
+        // (combo_id, produto_id) antes do delete ter efeito.
+        comboItemRepository.flush();
         salvarItens(id, request.getItens());
         return toResponse(combo, restauranteId);
     }
