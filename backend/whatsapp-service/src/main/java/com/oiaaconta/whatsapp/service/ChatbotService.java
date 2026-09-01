@@ -560,11 +560,17 @@ public class ChatbotService {
     // Depois de mesclar o que foi entendido da mensagem, decide o próximo
     // passo exatamente como o fluxo legado (endereço → pagamento → resumo) —
     // pula direto pro resumo se endereço e pagamento já vieram na mesma
-    // mensagem (ver item 3: cliente pode mandar tudo junto).
+    // mensagem (ver item 3: cliente pode mandar tudo junto). Antes de pedir
+    // o próximo dado, confirma pro cliente exatamente o que foi entendido
+    // (quantidade, sabor e valor de cada item) — sem isso o cliente só via
+    // esse detalhe no resumo final, depois de já ter informado endereço e
+    // pagamento, e não tinha como perceber um erro de interpretação antes.
     private void avancarAposColetarItens(SessaoWhatsapp s) {
+        enviar(s.getTelefone(), montarResumoItensAdicionados(s), s.getRestauranteId());
+
         if (s.getEnderecoRua() == null) {
             s.setEstado(EstadoSessao.COLETANDO_ENDERECO);
-            enviar(s.getTelefone(), "Show! Anotado. Agora me informa o endereço de entrega:\n_Ex: Rua das Flores, 123, Centro, Aracaju_", s.getRestauranteId());
+            enviar(s.getTelefone(), "Agora me informa o endereço de entrega:\n_Ex: Rua das Flores, 123, Centro, Aracaju_", s.getRestauranteId());
             return;
         }
         if (s.getMetodoPagamento() == null) {
@@ -574,6 +580,39 @@ public class ChatbotService {
         }
         s.setEstado(EstadoSessao.CONFIRMANDO_PEDIDO);
         mostrarResumoFinal(s);
+    }
+
+    // Lista o que está no carrinho até agora — quantidade, nome (e sabores
+    // escolhidos, se for um combo com grupos) e valor de cada item — pra
+    // confirmar com o cliente antes de seguir pedindo endereço/pagamento.
+    @SuppressWarnings("null")
+    private String montarResumoItensAdicionados(SessaoWhatsapp s) {
+        List<CatalogClient.ProdutoNumeradoResponse> catalogo = null;
+        BigDecimal total = BigDecimal.ZERO;
+        StringBuilder sb = new StringBuilder("Show! Anotado:\n\n");
+        for (ItemCarrinho item : s.getItens()) {
+            BigDecimal subtotal = item.getPrecoUnitario().multiply(BigDecimal.valueOf(item.getQuantidade()));
+            total = total.add(subtotal);
+            sb.append("• ").append(item.getQuantidade()).append("x ").append(item.getProdutoNome())
+                .append(" — R$ ").append(String.format("%.2f", subtotal)).append("\n");
+
+            if (item.getComboId() != null && item.getSaboresEscolhidos() != null && !item.getSaboresEscolhidos().isBlank()) {
+                Map<Long, Integer> sabores = parseSaboresEscolhidos(item.getSaboresEscolhidos());
+                if (!sabores.isEmpty()) {
+                    if (catalogo == null) catalogo = buscarCatalogoNumerado(s.getRestauranteId());
+                    for (Map.Entry<Long, Integer> e : sabores.entrySet()) {
+                        Long produtoId = e.getKey();
+                        String nomeSabor = catalogo.stream()
+                            .filter(p -> produtoId.equals(p.getProdutoId()))
+                            .findFirst().map(CatalogClient.ProdutoNumeradoResponse::getNome)
+                            .orElse("item #" + produtoId);
+                        sb.append("   - ").append(e.getValue()).append("x ").append(nomeSabor).append("\n");
+                    }
+                }
+            }
+        }
+        sb.append("\n*Subtotal: R$ ").append(String.format("%.2f", total)).append("*");
+        return sb.toString();
     }
 
     private void processarNumeroLid(SessaoWhatsapp s, String texto, String pushName) {
