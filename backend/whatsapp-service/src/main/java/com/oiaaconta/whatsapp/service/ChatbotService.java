@@ -737,7 +737,7 @@ public class ChatbotService {
     private void enviarLembreteCardapio(SessaoWhatsapp s) {
         String imagem = whatsappConfigService.getImagemCardapio(s.getRestauranteId());
 
-        String instrucao = "Ainda está por aí? 😊 Segue nosso cardápio! Responda com os números dos produtos que deseja, separados por vírgula (ex: 1, 3, 3), ou escreva o que você quer, seu endereço e a forma de pagamento.";
+        String instrucao = "Ainda está por aí? 😊 Segue nosso cardápio! Caso você não tenha conseguido pedir pelo nosso cardápio web, pode pedir direto por aqui: responda com os números dos itens que deseja, conforme a imagem, separados por vírgula (ex: 1, 3, 3), ou escreva o que você quer, seu endereço e a forma de pagamento.";
 
         if (imagem != null && !imagem.isBlank()) {
             evolutionClient.enviarImagem(s.getTelefone(), imagem, "");
