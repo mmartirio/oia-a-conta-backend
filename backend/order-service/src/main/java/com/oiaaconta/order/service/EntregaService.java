@@ -270,13 +270,9 @@ public class EntregaService {
         if (entrega.getStatus() != StatusEntrega.AGUARDANDO) {
             throw new BusinessException("Pedido não está aguardando confirmação");
         }
-        // Pedido PIX de cliente só pode ir pra cozinha depois que alguém
-        // confirmar visualmente que o PIX caiu (ver validarPagamentoPix) —
-        // sem essa trava, a cozinha começava a preparar mesmo sem receber.
-        if (Boolean.TRUE.equals(entrega.getOrigemWhatsapp()) && entrega.getMetodoPagamento() == MetodoPagamento.PIX
-                && !Boolean.TRUE.equals(entrega.getPagamentoPixValidado())) {
-            throw new BusinessException("Valide o pagamento do PIX antes de aceitar este pedido");
-        }
+        // Validar o PIX (ver validarPagamentoPix) é uma ação independente,
+        // feita no card "Aguardando confirmação" — não trava o aceite. O que
+        // trava é só o envio pra cozinha (ver enviarParaProducao mais abaixo).
         // Pedido PIX de cliente fica em CONFIRMADA (aceito, cliente já avisado,
         // mas ainda NÃO foi mandado pra cozinha) — só vai pra produção com uma
         // ação manual separada (ver enviarParaProducao), a pedido explícito do
