@@ -118,6 +118,21 @@ public class WhatsappPublicoController {
 
         enviarMensagemConfirmacao(telefone, restauranteId, request, itens, entrega.getId());
 
+        // Chave PIX mandada direto aqui (não pela notificação assíncrona por
+        // entregaId) — nesse ponto o entregaId acabou de ser gravado acima,
+        // mas order-service já tentaria notificar antes disso, durante a
+        // própria criação da entrega, e não acharia a sessão.
+        if (entrega.getPixChave() != null && !entrega.getPixChave().isBlank()) {
+            try {
+                String msg = mensagemService.resolverTexto(restauranteId, "PEDIDO_PIX",
+                    Map.of("PIX_CHAVE", entrega.getPixChave(), "VALOR", String.format("%.2f", entrega.getTotal())));
+                evolutionClient.enviarMensagem(telefone, msg);
+                mensagemWhatsappService.registrar(restauranteId, telefone, DirecaoMensagem.ENVIADA, msg);
+            } catch (Exception e) {
+                log.warn("Erro ao enviar chave PIX do pedido público #{}: {}", entrega.getId(), e.getMessage());
+            }
+        }
+
         return ResponseEntity.ok(Map.of(
             "mensagem", "Pedido enviado com sucesso!",
             "telefone", telefone,

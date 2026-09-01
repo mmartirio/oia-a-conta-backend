@@ -160,20 +160,6 @@ public class EntregaService {
             } catch (Exception e) {
                 log.warn("Falha ao notificar nova entrega aguardando #{}: {}", saved.getId(), e.getMessage());
             }
-            // PIX é enviado assim que o pedido chega no restaurante (aqui),
-            // não na entrega — o cliente precisa pagar ANTES de receber o
-            // pedido, não depois (era o bug: ver "entregar()" mais abaixo,
-            // que só notificava o PIX quando o pedido já tinha sido entregue).
-            if (request.isOrigemWhatsapp() && request.getMetodoPagamento() == MetodoPagamento.PIX) {
-                String pixChave = configuracaoService.get(restauranteId).getPixChave();
-                BigDecimal total = saved.getItens().stream()
-                    .map(i -> i.getPrecoUnitario().multiply(BigDecimal.valueOf(i.getQuantidade())))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-                notificarWhatsapp(restauranteId, saved.getId(), "PEDIDO_PIX",
-                    java.util.Map.of(
-                        "PIX_CHAVE", pixChave != null ? pixChave : "",
-                        "VALOR", String.format("%.2f", total)));
-            }
         } else {
             try {
                 Long pedidoId = orchestrationService.criarPedidoCozinha(saved);
@@ -184,7 +170,17 @@ public class EntregaService {
             }
         }
 
-        return toResponse(saved);
+        EntregaResponse resp = toResponse(saved);
+        // Preenchido só pra o cliente pagar assim que o pedido chega no
+        // restaurante — o caller (ChatbotService/WhatsappPublicoController)
+        // manda a chave PIX direto pro cliente, sem depender da notificação
+        // assíncrona por entregaId (nesse momento o whatsapp-service ainda
+        // não persistiu o entregaId na sessão, então essa notificação
+        // silenciosamente não acharia pra quem mandar).
+        if (request.isOrigemWhatsapp() && request.getMetodoPagamento() == MetodoPagamento.PIX) {
+            resp.setPixChave(configuracaoService.get(restauranteId).getPixChave());
+        }
+        return resp;
     }
 
     // Monta a string de endereço pra geocodificação — o checkout do WhatsApp/

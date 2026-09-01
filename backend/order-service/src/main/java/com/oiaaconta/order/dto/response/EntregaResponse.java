@@ -52,4 +52,10 @@ public class EntregaResponse {
 
     private Boolean origemIfood;
     private String ifoodOrderId;
+
+    // Só preenchido quando metodoPagamento é PIX (ver EntregaService.criar) —
+    // o caller (whatsapp-service) usa isso pra mandar a chave PIX ao cliente
+    // na hora, sem depender da notificação assíncrona por entregaId (que
+    // nesse momento ainda nem foi persistida do lado do whatsapp-service).
+    private String pixChave;
 }

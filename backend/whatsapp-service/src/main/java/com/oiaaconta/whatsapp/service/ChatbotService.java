@@ -752,6 +752,17 @@ public class ChatbotService {
 
             enviar(s.getTelefone(), mensagemService.resolverTexto(s.getRestauranteId(), "CHATBOT_PEDIDO_ENVIADO",
                 Map.of("PEDIDO_ID", String.valueOf(resp.getId()))), s.getRestauranteId());
+
+            // Manda a chave PIX na hora, direto (em vez de esperar a
+            // notificação assíncrona por entregaId) — a sessão só teve o
+            // entregaId gravado na linha acima, então quando order-service
+            // tenta notificar de volta durante a própria criação da entrega,
+            // ainda não encontraria essa sessão.
+            if (resp.getPixChave() != null && !resp.getPixChave().isBlank()) {
+                enviar(s.getTelefone(), mensagemService.resolverTexto(s.getRestauranteId(), "PEDIDO_PIX",
+                    Map.of("PIX_CHAVE", resp.getPixChave(), "VALOR", String.format("%.2f", resp.getTotal()))),
+                    s.getRestauranteId());
+            }
         } catch (Exception e) {
             log.error("Erro ao criar entrega via WhatsApp: {}", e.getMessage(), e);
             enviar(s.getTelefone(), "Erro ao enviar o pedido. Tente novamente ou ligue para nós.", s.getRestauranteId());
