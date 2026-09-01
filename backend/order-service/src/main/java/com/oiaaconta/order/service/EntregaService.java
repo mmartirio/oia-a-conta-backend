@@ -270,6 +270,13 @@ public class EntregaService {
         if (entrega.getStatus() != StatusEntrega.AGUARDANDO) {
             throw new BusinessException("Pedido não está aguardando confirmação");
         }
+        // Pedido PIX de cliente só pode ir pra cozinha depois que alguém
+        // confirmar visualmente que o PIX caiu (ver validarPagamentoPix) —
+        // sem essa trava, a cozinha começava a preparar mesmo sem receber.
+        if (Boolean.TRUE.equals(entrega.getOrigemWhatsapp()) && entrega.getMetodoPagamento() == MetodoPagamento.PIX
+                && !Boolean.TRUE.equals(entrega.getPagamentoPixValidado())) {
+            throw new BusinessException("Valide o pagamento do PIX antes de aceitar este pedido");
+        }
         entrega.setStatus(StatusEntrega.ACEITA);
         Entrega saved = entregaRepository.save(entrega);
 
@@ -438,6 +445,23 @@ public class EntregaService {
         return toResponse(entregaRepository.save(entrega));
     }
 
+    // Gate ANTES de aceitar (ver confirmar()) — cozinha/admin confere no app
+    // do banco que o PIX caiu e só então libera o botão "Aceitar pedido" no
+    // alerta de pedido pendente (não tem prazo pra isso, ao contrário do
+    // aceite normal: o cliente pode demorar pra pagar).
+    @Transactional
+    public EntregaResponse validarPagamentoPix(Long restauranteId, Long id) {
+        Entrega entrega = find(restauranteId, id);
+        if (entrega.getStatus() != StatusEntrega.AGUARDANDO) {
+            throw new BusinessException("Pedido não está aguardando confirmação");
+        }
+        if (entrega.getMetodoPagamento() != MetodoPagamento.PIX) {
+            throw new BusinessException("Este pedido não é PIX");
+        }
+        entrega.setPagamentoPixValidado(true);
+        return toResponse(entregaRepository.save(entrega));
+    }
+
     public List<EntregaResponse> listarEmRota(Long restauranteId) {
         return entregaRepository.findByRestauranteIdAndStatus(restauranteId, StatusEntrega.SAIU_PARA_ENTREGA)
             .stream()
@@ -553,6 +577,7 @@ public class EntregaService {
             .origemWhatsapp(Boolean.TRUE.equals(e.getOrigemWhatsapp()))
             .origemPdv(Boolean.TRUE.equals(e.getOrigemPdv()))
             .pagamentoConfirmadoCaixa(Boolean.TRUE.equals(e.getPagamentoConfirmadoCaixa()))
+            .pagamentoPixValidado(Boolean.TRUE.equals(e.getPagamentoPixValidado()))
             .criadoEm(e.getCreatedAt()).entregueEm(e.getEntregueAt())
             .latitude(e.getLatitude()).longitude(e.getLongitude())
             .localizacaoAtualizadaEm(e.getLocalizacaoAtualizadaEm())

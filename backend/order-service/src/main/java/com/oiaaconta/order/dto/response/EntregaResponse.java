@@ -38,6 +38,7 @@ public class EntregaResponse {
     private Boolean origemWhatsapp;
     private Boolean origemPdv;
     private Boolean pagamentoConfirmadoCaixa;
+    private Boolean pagamentoPixValidado;
     private LocalDateTime criadoEm;
     private LocalDateTime entregueEm;
 

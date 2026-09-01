@@ -76,6 +76,14 @@ public class EntregaController {
         return ResponseEntity.ok(entregaService.confirmar(restauranteId, id));
     }
 
+    @PutMapping("/{id}/validar-pix")
+    @PreAuthorize("hasAnyRole('COZINHA','ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<EntregaResponse> validarPix(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(entregaService.validarPagamentoPix(restauranteId, id));
+    }
+
     @PutMapping("/{id}/rejeitar")
     @PreAuthorize("hasAnyRole('COZINHA','ADMIN','SUPER_ADMIN')")
     public ResponseEntity<EntregaResponse> rejeitar(

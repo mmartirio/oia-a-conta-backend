@@ -87,6 +87,14 @@ public class Entrega {
     @Column(name = "pagamento_confirmado_caixa", nullable = false)
     private Boolean pagamentoConfirmadoCaixa = false;
 
+    // Distinto de pagamentoConfirmadoCaixa (que é sobre bater caixa na
+    // entrega/fim do dia) — este aqui é o gate ANTES de aceitar um pedido PIX
+    // vindo de cliente (WhatsApp/cardápio): a cozinha só deve começar a
+    // preparar depois que alguém confirmar visualmente que o PIX caiu.
+    @Builder.Default
+    @Column(name = "pagamento_pix_validado", nullable = false)
+    private Boolean pagamentoPixValidado = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

@@ -1,0 +1,1 @@
+ALTER TABLE entregas ADD COLUMN pagamento_pix_validado BOOLEAN NOT NULL DEFAULT FALSE;
