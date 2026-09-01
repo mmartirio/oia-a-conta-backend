@@ -160,6 +160,20 @@ public class EntregaService {
             } catch (Exception e) {
                 log.warn("Falha ao notificar nova entrega aguardando #{}: {}", saved.getId(), e.getMessage());
             }
+            // PIX é enviado assim que o pedido chega no restaurante (aqui),
+            // não na entrega — o cliente precisa pagar ANTES de receber o
+            // pedido, não depois (era o bug: ver "entregar()" mais abaixo,
+            // que só notificava o PIX quando o pedido já tinha sido entregue).
+            if (request.isOrigemWhatsapp() && request.getMetodoPagamento() == MetodoPagamento.PIX) {
+                String pixChave = configuracaoService.get(restauranteId).getPixChave();
+                BigDecimal total = saved.getItens().stream()
+                    .map(i -> i.getPrecoUnitario().multiply(BigDecimal.valueOf(i.getQuantidade())))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+                notificarWhatsapp(restauranteId, saved.getId(), "PEDIDO_PIX",
+                    java.util.Map.of(
+                        "PIX_CHAVE", pixChave != null ? pixChave : "",
+                        "VALOR", String.format("%.2f", total)));
+            }
         } else {
             try {
                 Long pedidoId = orchestrationService.criarPedidoCozinha(saved);
@@ -396,18 +410,7 @@ public class EntregaService {
         EntregaResponse resp = toResponse(entregaRepository.save(entrega));
 
         if (Boolean.TRUE.equals(entrega.getOrigemWhatsapp())) {
-            if (entrega.getMetodoPagamento() == MetodoPagamento.PIX) {
-                String pixChave = configuracaoService.get(restauranteId).getPixChave();
-                BigDecimal total = entrega.getItens().stream()
-                    .map(i -> i.getPrecoUnitario().multiply(BigDecimal.valueOf(i.getQuantidade())))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-                notificarWhatsapp(restauranteId, entrega.getId(), "PEDIDO_PIX",
-                    java.util.Map.of(
-                        "PIX_CHAVE", pixChave != null ? pixChave : "",
-                        "VALOR", String.format("%.2f", total)));
-            } else {
-                notificarWhatsapp(restauranteId, entrega.getId(), "PEDIDO_ENTREGUE");
-            }
+            notificarWhatsapp(restauranteId, entrega.getId(), "PEDIDO_ENTREGUE");
         }
         if (Boolean.TRUE.equals(entrega.getOrigemIfood())) {
             notificarIfood(entrega, "ENTREGUE");

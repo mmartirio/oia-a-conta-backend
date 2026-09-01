@@ -81,7 +81,7 @@ public class MensagemTemplateService {
         put("PEDIDO_PRONTO",    "🎉 Seu pedido está pronto! O entregador vai buscá-lo em breve.");
         put("PEDIDO_SAIU",      "🛵 Seu pedido saiu para entrega! O entregador está a caminho.");
         put("PEDIDO_ENTREGUE",  "✅ Pedido entregue! Obrigado pela preferência. 😊");
-        put("PEDIDO_PIX",       "✅ Pedido entregue! Para finalizar, realize o pagamento via PIX.\n\n🔑 *Chave PIX:* {PIX_CHAVE}\n💰 *Valor:* R$ {VALOR}");
+        put("PEDIDO_PIX",       "✅ Pedido recebido! Para confirmarmos e já mandarmos pra cozinha, realize o pagamento via PIX:\n\n🔑 *Chave PIX:* {PIX_CHAVE}\n💰 *Valor:* R$ {VALOR}");
         put("PEDIDO_CANCELADO", "❌ Seu pedido foi cancelado. Entre em contato conosco para mais informações.");
         put("PEDIDO_REJEITADO", "❌ Não conseguimos aceitar seu pedido no momento.\n\n*Motivo:* {MOTIVO}\n\nPor favor, entre em contato conosco ou tente novamente mais tarde.");
     }};
