@@ -14,7 +14,13 @@ import java.util.List;
 
 public interface MensagemWhatsappRepository extends JpaRepository<MensagemWhatsapp, Long> {
 
-    Page<MensagemWhatsapp> findByRestauranteIdAndTelefoneOrderByCriadoEmAsc(
+    // DESC de propósito: página 0 precisa trazer as mensagens MAIS RECENTES
+    // da conversa (não o início dela lá de trás) — o frontend já reverte a
+    // página pra exibir em ordem cronológica, e usa páginas seguintes pra
+    // "carregar mensagens antigas" nesse mesmo sentido (ver
+    // AdminWhatsappConversas.tsx). Com ASC, conversas com muito histórico só
+    // mostravam o começo antigo ao abrir.
+    Page<MensagemWhatsapp> findByRestauranteIdAndTelefoneOrderByCriadoEmDesc(
         Long restauranteId, String telefone, Pageable pageable);
 
     // Deduplicação do espelho "fromMe" do webhook contra o que o

@@ -123,7 +123,7 @@ public class MensagemWhatsappService {
     @Transactional
     public Page<MensagemResponse> listarMensagens(Long restauranteId, String telefone, Pageable pageable) {
         marcarConversaComoLida(restauranteId, telefone);
-        return mensagemRepo.findByRestauranteIdAndTelefoneOrderByCriadoEmAsc(restauranteId, telefone, pageable)
+        return mensagemRepo.findByRestauranteIdAndTelefoneOrderByCriadoEmDesc(restauranteId, telefone, pageable)
             .map(m -> MensagemResponse.builder()
                 .id(m.getId())
                 .direcao(m.getDirecao())
