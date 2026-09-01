@@ -112,9 +112,11 @@ public class OllamaClient {
             (produtoId de exemplo — use os IDs reais do cardápio acima. Repare que "3 coxinhas" virou quantidade:3 e "uma coca" virou quantidade:1 — nunca deixe quantidade vazio ou null.)
 
             Responda APENAS com um JSON válido, sem nenhum texto antes ou depois, neste formato exato:
-            {"itens":[{"produtoId":123,"quantidade":1}],"endereco":"endereço completo ou null","formaPagamento":"DINHEIRO|PIX|CARTAO_CREDITO|CARTAO_DEBITO ou null"}
+            {"itens":[{"produtoId":123,"quantidade":1}],"endereco":"endereço completo ou null","formaPagamento":"DINHEIRO|PIX|CARTAO_CREDITO|CARTAO_DEBITO ou null","itensNaoReconhecidos":["trecho da mensagem"]}
 
-            Regras: só inclua produtos que você reconheceu com confiança no cardápio acima; "quantidade" é sempre obrigatório (use 1 se a mensagem não deixar claro quantas unidades); se não identificar endereço ou forma de pagamento nessa mensagem, use null nesses campos (não repita o que já foi informado antes).
+            Regras: só inclua em "itens" produtos que você reconheceu com confiança no cardápio acima; "quantidade" é sempre obrigatório (use 1 se a mensagem não deixar claro quantas unidades); se não identificar endereço ou forma de pagamento nessa mensagem, use null nesses campos (não repita o que já foi informado antes).
+
+            "itensNaoReconhecidos": se a mensagem parecer estar pedindo um produto mas o nome usado for genérico ou ambíguo demais pra resolver com confiança pra um produtoId específico (ex: cliente pediu "um refrigerante" e o cardápio só tem "Coca-cola lata" e "Guaraná lata" — nenhum se chama literalmente "refrigerante"), inclua o trecho exato que o cliente usou nessa lista, em vez de chutar um produtoId. Se não houver nenhum caso assim, use uma lista vazia [].
             """.formatted(cardapioTexto, enderecoAtual, pagamentoAtual, mensagemCliente);
     }
 
@@ -123,6 +125,7 @@ public class OllamaClient {
         private List<ItemInterpretado> itens;
         private String endereco;
         private String formaPagamento;
+        private List<String> itensNaoReconhecidos;
     }
 
     @Data

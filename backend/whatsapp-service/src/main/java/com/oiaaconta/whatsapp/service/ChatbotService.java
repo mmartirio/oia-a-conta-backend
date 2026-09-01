@@ -525,6 +525,17 @@ public class ChatbotService {
             s.setMetodoPagamento(interpretado.getFormaPagamento());
             algumaCoisa = true;
         }
+
+        // Itens que o cliente pareceu pedir mas não bateram com nenhum
+        // produto do cardápio com confiança (ex: "refrigerante" quando só
+        // existe "Coca-cola lata"/"Guaraná lata") — avisa em vez de só
+        // ignorar, senão o cliente só percebe que faltou no resumo final.
+        if (interpretado.getItensNaoReconhecidos() != null && !interpretado.getItensNaoReconhecidos().isEmpty()) {
+            String naoReconhecidos = String.join(", ", interpretado.getItensNaoReconhecidos());
+            enviar(s.getTelefone(), "Não consegui identificar no cardápio: " + naoReconhecidos
+                + ". Pode me dizer o nome certinho do produto ou o número dele?", s.getRestauranteId());
+            algumaCoisa = true;
+        }
         return algumaCoisa;
     }
 
