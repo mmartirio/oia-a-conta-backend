@@ -270,13 +270,12 @@ public class EntregaService {
         if (entrega.getStatus() != StatusEntrega.AGUARDANDO) {
             throw new BusinessException("Pedido não está aguardando confirmação");
         }
-        // Validar o PIX (ver validarPagamentoPix) é uma ação independente,
-        // feita no card "Aguardando confirmação" — não trava o aceite. O que
-        // trava é só o envio pra cozinha (ver enviarParaProducao mais abaixo).
-        // Pedido PIX de cliente fica em CONFIRMADA (aceito, cliente já avisado,
-        // mas ainda NÃO foi mandado pra cozinha) — só vai pra produção com uma
-        // ação manual separada (ver enviarParaProducao), a pedido explícito do
-        // dono: nada de disparo automático pra cozinha assim que aceitar.
+        // Aceitar sem validar o PIX ainda funciona (não trava) — mas pedido
+        // PIX de cliente fica em CONFIRMADA (aceito, cliente já avisado, mas
+        // ainda NÃO foi mandado pra cozinha) em vez de ACEITA: só validar o
+        // PIX (ver validarPagamentoPix) manda de fato pra produção. Sem essa
+        // separação, aceitar sozinho já disparava a cozinha sem confirmar
+        // que o pagamento realmente caiu.
         boolean pixAguardandoEnvio = Boolean.TRUE.equals(entrega.getOrigemWhatsapp())
             && entrega.getMetodoPagamento() == MetodoPagamento.PIX;
         entrega.setStatus(pixAguardandoEnvio ? StatusEntrega.CONFIRMADA : StatusEntrega.ACEITA);
@@ -299,27 +298,6 @@ public class EntregaService {
             notificarIfood(saved, "CONFIRMADA");
         }
 
-        return toResponse(saved);
-    }
-
-    // Ação manual separada — só existe pedido PIX parado em CONFIRMADA (ver
-    // confirmar() acima). Quem decide mandar pra cozinha é uma pessoa, não o
-    // sistema, mesmo já com o pagamento validado.
-    @Transactional
-    public EntregaResponse enviarParaProducao(Long restauranteId, Long id) {
-        Entrega entrega = find(restauranteId, id);
-        if (entrega.getStatus() != StatusEntrega.CONFIRMADA) {
-            throw new BusinessException("Pedido não está aguardando envio pra produção");
-        }
-        entrega.setStatus(StatusEntrega.ACEITA);
-        Entrega saved = entregaRepository.save(entrega);
-        try {
-            Long pedidoId = orchestrationService.criarPedidoCozinha(saved);
-            saved.setPedidoCozinhaId(pedidoId);
-            saved = entregaRepository.save(saved);
-        } catch (Exception e) {
-            log.warn("Falha ao criar pedido na cozinha para entrega #{}", saved.getId(), e);
-        }
         return toResponse(saved);
     }
 
@@ -469,21 +447,38 @@ public class EntregaService {
         return toResponse(entregaRepository.save(entrega));
     }
 
-    // Gate ANTES de aceitar (ver confirmar()) — cozinha/admin confere no app
-    // do banco que o PIX caiu e só então libera o botão "Aceitar pedido" no
-    // alerta de pedido pendente (não tem prazo pra isso, ao contrário do
-    // aceite normal: o cliente pode demorar pra pagar).
+    // Ação manual de quem confere no app do banco que o PIX caiu — feita no
+    // card "Aguardando confirmação". Validar já manda pra produção na hora
+    // (ACEITA + pedido criado na cozinha), pedido explícito do dono: não tem
+    // uma etapa separada de "enviar pra cozinha" depois de validar. Funciona
+    // tanto pra pedido ainda AGUARDANDO (valida e aceita tudo junto) quanto
+    // pra um que já foi aceito sem validar antes (ver confirmar() — nesse
+    // caso só falta mandar pra cozinha, sem repetir o aviso de aceite pro
+    // cliente que ele já recebeu).
     @Transactional
     public EntregaResponse validarPagamentoPix(Long restauranteId, Long id) {
         Entrega entrega = find(restauranteId, id);
-        if (entrega.getStatus() != StatusEntrega.AGUARDANDO) {
-            throw new BusinessException("Pedido não está aguardando confirmação");
-        }
         if (entrega.getMetodoPagamento() != MetodoPagamento.PIX) {
             throw new BusinessException("Este pedido não é PIX");
         }
+        boolean aindaNaoAceito = entrega.getStatus() == StatusEntrega.AGUARDANDO;
+        if (!aindaNaoAceito && entrega.getStatus() != StatusEntrega.CONFIRMADA) {
+            throw new BusinessException("Pedido não está aguardando confirmação");
+        }
         entrega.setPagamentoPixValidado(true);
-        return toResponse(entregaRepository.save(entrega));
+        entrega.setStatus(StatusEntrega.ACEITA);
+        Entrega saved = entregaRepository.save(entrega);
+        try {
+            Long pedidoId = orchestrationService.criarPedidoCozinha(saved);
+            saved.setPedidoCozinhaId(pedidoId);
+            saved = entregaRepository.save(saved);
+        } catch (Exception e) {
+            log.warn("Falha ao criar pedido na cozinha para entrega #{}", saved.getId(), e);
+        }
+        if (aindaNaoAceito && Boolean.TRUE.equals(entrega.getOrigemWhatsapp())) {
+            notificarWhatsapp(restauranteId, saved.getId(), "PEDIDO_ACEITO");
+        }
+        return toResponse(saved);
     }
 
     public List<EntregaResponse> listarEmRota(Long restauranteId) {
