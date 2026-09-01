@@ -15,6 +15,7 @@ public class ComboResponse {
     private String descricao;
     private BigDecimal preco;
     private String imagemBase64;
+    private Integer numeroCardapio;
     private boolean ativo;
     private List<ComboItemResponse> itens;
 }

@@ -301,8 +301,7 @@ public class ChatbotService {
 
         if (!interpretou) {
             if (s.getEstado() == EstadoSessao.COLETANDO_PEDIDO_CHAT) {
-                enviar(s.getTelefone(), "Não entendi. Responda com os números dos produtos que deseja, separados por vírgula (ex: 1, 3, 3):\n\n"
-                    + montarTextoCardapio(catalogo), s.getRestauranteId());
+                enviar(s.getTelefone(), "Não entendi. Responda com os números dos produtos que deseja, conforme o cardápio enviado, separados por vírgula (ex: 1, 3, 3):", s.getRestauranteId());
             } else {
                 reenviarLinkCardapio(s);
             }
@@ -319,15 +318,6 @@ public class ChatbotService {
             log.warn("Falha ao buscar cardápio numerado do restaurante {}: {}", restauranteId, e.getMessage());
             return List.of();
         }
-    }
-
-    private String montarTextoCardapio(List<CatalogClient.ProdutoNumeradoResponse> catalogo) {
-        StringBuilder sb = new StringBuilder();
-        for (CatalogClient.ProdutoNumeradoResponse p : catalogo) {
-            sb.append(p.getNumero()).append(" - ").append(p.getNome())
-                .append(" - R$ ").append(p.getPreco()).append("\n");
-        }
-        return sb.toString();
     }
 
     // "2, 5, 5" -> 1x produto do número 2, 2x produto do número 5 (conta as
@@ -350,7 +340,7 @@ public class ChatbotService {
                 .filter(p -> p.getNumero().equals(entrada.getKey()))
                 .findFirst().orElse(null);
             if (produto == null) continue;
-            adicionarOuIncrementarItem(s, produto.getProdutoId(), produto.getNome(), produto.getPreco(), entrada.getValue().intValue());
+            adicionarOuIncrementarItem(s, produto.getProdutoId(), produto.getComboId(), produto.getNome(), produto.getPreco(), entrada.getValue().intValue());
             algumItem = true;
         }
         return algumItem;
@@ -367,11 +357,11 @@ public class ChatbotService {
             for (OllamaClient.ItemInterpretado item : interpretado.getItens()) {
                 if (item.getProdutoId() == null) continue;
                 CatalogClient.ProdutoNumeradoResponse produto = catalogo.stream()
-                    .filter(p -> p.getProdutoId().equals(item.getProdutoId()))
+                    .filter(p -> item.getProdutoId().equals(p.getProdutoId()))
                     .findFirst().orElse(null);
                 if (produto == null) continue;
                 int quantidade = item.getQuantidade() == null || item.getQuantidade() < 1 ? 1 : item.getQuantidade();
-                adicionarOuIncrementarItem(s, produto.getProdutoId(), produto.getNome(), produto.getPreco(), quantidade);
+                adicionarOuIncrementarItem(s, produto.getProdutoId(), produto.getComboId(), produto.getNome(), produto.getPreco(), quantidade);
                 algumaCoisa = true;
             }
         }
@@ -387,9 +377,11 @@ public class ChatbotService {
         return algumaCoisa;
     }
 
-    private void adicionarOuIncrementarItem(SessaoWhatsapp s, Long produtoId, String nome, BigDecimal preco, int quantidade) {
+    // Exatamente um de produtoId/comboId vem preenchido (ver
+    // CatalogClient.ProdutoNumeradoResponse) — o outro é null.
+    private void adicionarOuIncrementarItem(SessaoWhatsapp s, Long produtoId, Long comboId, String nome, BigDecimal preco, int quantidade) {
         ItemCarrinho existente = s.getItens().stream()
-            .filter(i -> produtoId.equals(i.getProdutoId()))
+            .filter(i -> comboId != null ? comboId.equals(i.getComboId()) : produtoId.equals(i.getProdutoId()))
             .findFirst().orElse(null);
         if (existente != null) {
             existente.setQuantidade(existente.getQuantidade() + quantidade);
@@ -397,7 +389,8 @@ public class ChatbotService {
         }
         if (s.getItens() == null) s.setItens(new ArrayList<>());
         s.getItens().add(ItemCarrinho.builder()
-            .sessao(s).produtoId(produtoId).produtoNome(nome)
+            .sessao(s).produtoId(produtoId).comboId(comboId)
+            .produtoNome(nome).comboNome(comboId != null ? nome : null)
             .precoUnitario(preco).quantidade(quantidade)
             .build());
     }
@@ -524,6 +517,8 @@ public class ChatbotService {
                 .map(i -> OrderClient.ItemEntregaRequest.builder()
                     .produtoId(i.getProdutoId()).produtoNome(i.getProdutoNome())
                     .precoUnitario(i.getPrecoUnitario()).quantidade(i.getQuantidade())
+                    .comboId(i.getComboId())
+                    .comboQuantidade(i.getComboId() != null ? i.getQuantidade() : null)
                     .build())
                 .toList();
 
@@ -580,12 +575,9 @@ public class ChatbotService {
     }
 
     private void enviarLembreteCardapio(SessaoWhatsapp s) {
-        List<CatalogClient.ProdutoNumeradoResponse> catalogo = buscarCatalogoNumerado(s.getRestauranteId());
         String imagem = whatsappConfigService.getImagemCardapio(s.getRestauranteId());
 
-        String textoCardapio = catalogo.isEmpty() ? "" : "\n\n" + montarTextoCardapio(catalogo);
-        String instrucao = "Ainda está por aí? 😊 Segue nosso cardápio! Responda com os números dos produtos que deseja, separados por vírgula (ex: 1, 3, 3), ou escreva o que você quer, seu endereço e a forma de pagamento."
-            + textoCardapio;
+        String instrucao = "Ainda está por aí? 😊 Segue nosso cardápio! Responda com os números dos produtos que deseja, separados por vírgula (ex: 1, 3, 3), ou escreva o que você quer, seu endereço e a forma de pagamento.";
 
         if (imagem != null && !imagem.isBlank()) {
             evolutionClient.enviarImagem(s.getTelefone(), imagem, "");

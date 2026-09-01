@@ -34,6 +34,12 @@ public class Combo {
     @Column(name = "imagem_base64", columnDefinition = "TEXT")
     private String imagemBase64;
 
+    // Número que o cliente digita no chat do WhatsApp pra pedir esse combo —
+    // mesmo espaço de numeração de Produto.numeroCardapio (ver
+    // ProdutoNumeradoResponse), null = combo não aparece no cardápio numerado.
+    @Column(name = "numero_cardapio")
+    private Integer numeroCardapio;
+
     @Builder.Default
     private boolean ativo = true;
 

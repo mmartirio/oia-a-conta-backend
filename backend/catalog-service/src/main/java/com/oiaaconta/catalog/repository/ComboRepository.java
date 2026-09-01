@@ -10,4 +10,5 @@ public interface ComboRepository extends JpaRepository<Combo, Long> {
     List<Combo> findByRestauranteIdOrderByNomeAsc(Long restauranteId);
     List<Combo> findByRestauranteIdAndAtivoTrueOrderByNomeAsc(Long restauranteId);
     Optional<Combo> findByIdAndRestauranteId(Long id, Long restauranteId);
+    List<Combo> findByRestauranteIdAndAtivoTrueAndNumeroCardapioIsNotNullOrderByNumeroCardapioAsc(Long restauranteId);
 }

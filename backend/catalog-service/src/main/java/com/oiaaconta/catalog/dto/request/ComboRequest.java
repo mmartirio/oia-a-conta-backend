@@ -24,6 +24,10 @@ public class ComboRequest {
     // null = não altera (update) / sem foto (create); "" explícito = remover a foto atual.
     private String imagemBase64;
 
+    // Número pro cliente pedir esse combo no chat do WhatsApp — null = combo
+    // não entra no cardápio numerado (só disponível pelo cardápio público).
+    private Integer numeroCardapio;
+
     @NotNull(message = "Itens do combo obrigatórios")
     @Size(min = 2, message = "Um combo precisa de pelo menos 2 produtos distintos")
     @Valid

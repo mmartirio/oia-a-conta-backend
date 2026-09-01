@@ -39,9 +39,14 @@ public class PublicoCatalogController {
     // Consumido pelo whatsapp-service pra montar/interpretar o cardápio
     // numerado enviado pelo chatbot (imagem que o admin desenha + números que
     // o cliente digita de volta no chat). Mesmo motivo de ser público: chamada
-    // serviço-a-serviço sem JWT de usuário.
+    // serviço-a-serviço sem JWT de usuário. Une produtos e combos no mesmo
+    // espaço de numeração — sem isso, um número de combo (ex: 18) era
+    // ignorado silenciosamente pelo chat, já que só produtos eram consultados.
     @GetMapping("/{restauranteId}/produtos-numerados")
     public ResponseEntity<List<ProdutoNumeradoResponse>> getProdutosNumerados(@PathVariable Long restauranteId) {
-        return ResponseEntity.ok(produtoService.listarNumerados(restauranteId));
+        List<ProdutoNumeradoResponse> unificado = new java.util.ArrayList<>(produtoService.listarNumerados(restauranteId));
+        unificado.addAll(comboService.listarNumerados(restauranteId));
+        unificado.sort(java.util.Comparator.comparing(ProdutoNumeradoResponse::getNumero));
+        return ResponseEntity.ok(unificado);
     }
 }

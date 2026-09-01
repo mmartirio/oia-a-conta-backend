@@ -21,6 +21,7 @@ public interface CatalogClient {
     class ProdutoNumeradoResponse {
         private Integer numero;
         private Long produtoId;
+        private Long comboId;
         private String nome;
         private BigDecimal preco;
     }

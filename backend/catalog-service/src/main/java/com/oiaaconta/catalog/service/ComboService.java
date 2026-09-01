@@ -52,6 +52,7 @@ public class ComboService {
             .nome(request.getNome()).descricao(request.getDescricao())
             .preco(request.getPreco())
             .imagemBase64(validarImagemOuLimpar(request.getImagemBase64(), null))
+            .numeroCardapio(request.getNumeroCardapio())
             .ativo(true)
             .build());
         salvarItens(combo.getId(), request.getItens());
@@ -66,6 +67,7 @@ public class ComboService {
         combo.setDescricao(request.getDescricao());
         combo.setPreco(request.getPreco());
         combo.setImagemBase64(validarImagemOuLimpar(request.getImagemBase64(), combo.getImagemBase64()));
+        combo.setNumeroCardapio(request.getNumeroCardapio());
         comboRepository.save(combo);
         comboItemRepository.deleteByComboId(id);
         salvarItens(id, request.getItens());
@@ -117,8 +119,24 @@ public class ComboService {
             .id(combo.getId()).restauranteId(combo.getRestauranteId())
             .nome(combo.getNome()).descricao(combo.getDescricao())
             .preco(combo.getPreco()).imagemBase64(combo.getImagemBase64())
+            .numeroCardapio(combo.getNumeroCardapio())
             .ativo(combo.isAtivo()).itens(itensResponse)
             .build();
+    }
+
+    // Cardápio numerado (chatbot WhatsApp) — mesmo formato usado por
+    // ProdutoService.listarNumerados, unidos pelo PublicoCatalogController
+    // num único espaço de numeração (produtoId null = é combo).
+    public List<com.oiaaconta.catalog.dto.response.ProdutoNumeradoResponse> listarNumerados(Long restauranteId) {
+        return comboRepository.findByRestauranteIdAndAtivoTrueAndNumeroCardapioIsNotNullOrderByNumeroCardapioAsc(restauranteId)
+            .stream()
+            .map(c -> com.oiaaconta.catalog.dto.response.ProdutoNumeradoResponse.builder()
+                .numero(c.getNumeroCardapio())
+                .comboId(c.getId())
+                .nome(c.getNome())
+                .preco(c.getPreco())
+                .build())
+            .toList();
     }
 
     // Rateia o preço do combo entre os produtos que o compõem, proporcional ao
