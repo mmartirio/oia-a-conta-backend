@@ -19,6 +19,10 @@ public enum EstadoSessao {
     // depois do lembrete de 10 min (imagem do cardápio numerado): aguardando o
     // cliente responder com números/nomes de produtos direto no chat
     COLETANDO_PEDIDO_CHAT,
+    // cliente pediu um combo com grupos (ex: "2 Pastéis") — bot está
+    // perguntando, grupo por grupo, quais sabores ele quer (ver
+    // SessaoWhatsapp.comboSelecaoId/comboSelecaoGrupoIndex)
+    ESCOLHENDO_SABORES_COMBO,
     COLETANDO_PAGAMENTO,
     COLETANDO_OBSERVACAO,
     CONFIRMANDO_PEDIDO,

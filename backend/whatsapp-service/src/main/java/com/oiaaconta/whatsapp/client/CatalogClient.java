@@ -17,11 +17,40 @@ public interface CatalogClient {
     @GetMapping("/catalog/publico/{restauranteId}/produtos-numerados")
     List<ProdutoNumeradoResponse> listarProdutosNumerados(@PathVariable("restauranteId") Long restauranteId);
 
+    // Detalhe completo do combo (grupos + produtos elegíveis em cada um) —
+    // usado pra perguntar os sabores ao cliente (ver ChatbotService).
+    @GetMapping("/catalog/publico/{restauranteId}/combos/{id}")
+    ComboResponse buscarCombo(@PathVariable("restauranteId") Long restauranteId, @PathVariable("id") Long id);
+
     @Data
     class ProdutoNumeradoResponse {
         private Integer numero;
         private Long produtoId;
         private Long comboId;
+        private String nome;
+        private BigDecimal preco;
+    }
+
+    @Data
+    class ComboResponse {
+        private Long id;
+        private String nome;
+        private BigDecimal preco;
+        private boolean ativo;
+        private List<ComboGrupo> grupos;
+    }
+
+    @Data
+    class ComboGrupo {
+        private Long id;
+        private String nome;
+        private Integer quantidade;
+        private List<ComboGrupoProduto> produtos;
+    }
+
+    @Data
+    class ComboGrupoProduto {
+        private Long produtoId;
         private String nome;
         private BigDecimal preco;
     }

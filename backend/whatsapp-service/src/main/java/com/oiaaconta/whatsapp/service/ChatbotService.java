@@ -164,6 +164,7 @@ public class ChatbotService {
                 case COLETANDO_NOME -> processarNome(sessao, texto);
                 case COLETANDO_ENDERECO -> processarEndereco(sessao, texto);
                 case AGUARDANDO_PEDIDO_WEB, COLETANDO_PEDIDO_CHAT -> processarPossivelPedido(sessao, texto, textoLimpo);
+                case ESCOLHENDO_SABORES_COMBO -> processarEscolhaSabores(sessao, textoLimpo);
                 case COLETANDO_PAGAMENTO -> processarPagamento(sessao, textoLimpo);
                 case COLETANDO_OBSERVACAO -> processarObservacao(sessao, textoLimpo);
                 case CONFIRMANDO_PEDIDO -> processarConfirmacao(sessao, textoLimpo);
@@ -308,6 +309,12 @@ public class ChatbotService {
             return;
         }
 
+        // Um combo com grupos pode ter jogado a sessão pro meio da pergunta
+        // de sabores (ver tentarInterpretarNumeros) — nesse caso já foi
+        // enviada a pergunta do primeiro grupo; não avança pro endereço
+        // ainda, só depois que a escolha terminar (processarEscolhaSabores).
+        if (s.getEstado() == EstadoSessao.ESCOLHENDO_SABORES_COMBO) return;
+
         avancarAposColetarItens(s);
     }
 
@@ -340,10 +347,154 @@ public class ChatbotService {
                 .filter(p -> p.getNumero().equals(entrada.getKey()))
                 .findFirst().orElse(null);
             if (produto == null) continue;
-            adicionarOuIncrementarItem(s, produto.getProdutoId(), produto.getComboId(), produto.getNome(), produto.getPreco(), entrada.getValue().intValue());
+
+            if (produto.getComboId() != null) {
+                adicionarOuIncrementarItem(s, null, produto.getComboId(), produto.getNome(), produto.getPreco(), entrada.getValue().intValue());
+                if (iniciarEscolhaSaboresSeNecessario(s, produto.getComboId())) {
+                    // Entrou no fluxo de pergunta de sabor — para de processar
+                    // o resto da mensagem; o cliente responde os sabores antes
+                    // de qualquer outro número valer (ver processarPossivelPedido).
+                    return true;
+                }
+                algumItem = true;
+                continue;
+            }
+
+            adicionarOuIncrementarItem(s, produto.getProdutoId(), null, produto.getNome(), produto.getPreco(), entrada.getValue().intValue());
             algumItem = true;
         }
         return algumItem;
+    }
+
+    // Se o combo tiver grupos configurados (ver Combo.grupos), inicia a
+    // pergunta de sabor grupo por grupo e retorna true — a chamadora deve
+    // parar de processar mais itens da mensagem até o cliente responder.
+    // Combo sem grupos (ainda não configurado, ou de propósito sem escolha)
+    // retorna false e o item já adicionado ao carrinho fica como está.
+    private boolean iniciarEscolhaSaboresSeNecessario(SessaoWhatsapp s, Long comboId) {
+        CatalogClient.ComboResponse combo;
+        try {
+            combo = catalogClient.buscarCombo(s.getRestauranteId(), comboId);
+        } catch (Exception e) {
+            log.warn("Falha ao buscar detalhe do combo {}: {}", comboId, e.getMessage());
+            return false;
+        }
+        if (combo.getGrupos() == null || combo.getGrupos().isEmpty()) return false;
+
+        s.setComboSelecaoId(combo.getId());
+        s.setComboSelecaoGrupoIndex(0);
+        s.setEstado(EstadoSessao.ESCOLHENDO_SABORES_COMBO);
+        enviarPromptGrupoAtual(s, combo);
+        return true;
+    }
+
+    private void enviarPromptGrupoAtual(SessaoWhatsapp s, CatalogClient.ComboResponse combo) {
+        CatalogClient.ComboGrupo grupo = combo.getGrupos().get(s.getComboSelecaoGrupoIndex());
+        StringBuilder sb = new StringBuilder();
+        sb.append("Escolha ").append(grupo.getQuantidade()).append("x \"").append(grupo.getNome())
+            .append("\" pro combo ").append(combo.getNome()).append(":\n\n");
+        int i = 1;
+        for (CatalogClient.ComboGrupoProduto p : grupo.getProdutos()) {
+            sb.append(i++).append(" - ").append(p.getNome()).append("\n");
+        }
+        sb.append("\nResponda com ").append(grupo.getQuantidade())
+            .append(grupo.getQuantidade() == 1 ? " número" : " números")
+            .append(", separados por vírgula (pode repetir o mesmo, ex: 1,1).");
+        enviar(s.getTelefone(), sb.toString(), s.getRestauranteId());
+    }
+
+    // Resposta do cliente a um grupo do combo em andamento (ver
+    // iniciarEscolhaSaboresSeNecessario) — números aqui são LOCAIS à lista
+    // de opções do grupo (1..N), não o número global do cardápio.
+    private void processarEscolhaSabores(SessaoWhatsapp s, String texto) {
+        CatalogClient.ComboResponse combo;
+        try {
+            combo = catalogClient.buscarCombo(s.getRestauranteId(), s.getComboSelecaoId());
+        } catch (Exception e) {
+            log.warn("Falha ao buscar combo durante escolha de sabores: {}", e.getMessage());
+            limparEscolhaSabores(s);
+            avancarAposColetarItens(s);
+            return;
+        }
+        List<CatalogClient.ComboGrupo> grupos = combo.getGrupos();
+        Integer grupoIndex = s.getComboSelecaoGrupoIndex();
+        if (grupos == null || grupoIndex == null || grupoIndex >= grupos.size()) {
+            limparEscolhaSabores(s);
+            avancarAposColetarItens(s);
+            return;
+        }
+        CatalogClient.ComboGrupo grupo = grupos.get(grupoIndex);
+
+        List<Integer> numeros = new ArrayList<>();
+        for (String parte : texto.split("[,;\\s]+")) {
+            if (parte.isBlank()) continue;
+            try {
+                numeros.add(Integer.parseInt(parte.trim()));
+            } catch (NumberFormatException ignored) { }
+        }
+        if (numeros.size() != grupo.getQuantidade()) {
+            throw new EntradaInvalidaException("Escolha exatamente " + grupo.getQuantidade()
+                + " número(s) pra \"" + grupo.getNome() + "\", separados por vírgula:");
+        }
+
+        Map<Long, Integer> escolha = new java.util.LinkedHashMap<>();
+        for (int numero : numeros) {
+            if (numero < 1 || numero > grupo.getProdutos().size()) {
+                throw new EntradaInvalidaException("Número inválido pra \"" + grupo.getNome()
+                    + "\". Escolha entre 1 e " + grupo.getProdutos().size() + ":");
+            }
+            CatalogClient.ComboGrupoProduto escolhido = grupo.getProdutos().get(numero - 1);
+            escolha.merge(escolhido.getProdutoId(), 1, Integer::sum);
+        }
+        acumularEscolhaNoItemCombo(s, combo.getId(), escolha);
+
+        int proximoIndex = grupoIndex + 1;
+        if (proximoIndex < grupos.size()) {
+            s.setComboSelecaoGrupoIndex(proximoIndex);
+            enviarPromptGrupoAtual(s, combo);
+            return;
+        }
+
+        limparEscolhaSabores(s);
+        enviar(s.getTelefone(), "Sabores do combo \"" + combo.getNome() + "\" anotados! 👍", s.getRestauranteId());
+        avancarAposColetarItens(s);
+    }
+
+    private void limparEscolhaSabores(SessaoWhatsapp s) {
+        s.setComboSelecaoId(null);
+        s.setComboSelecaoGrupoIndex(null);
+        s.setEstado(EstadoSessao.COLETANDO_PEDIDO_CHAT);
+    }
+
+    private void acumularEscolhaNoItemCombo(SessaoWhatsapp s, Long comboId, Map<Long, Integer> escolhaGrupo) {
+        ItemCarrinho item = null;
+        for (ItemCarrinho i : s.getItens()) {
+            if (comboId.equals(i.getComboId())) item = i;
+        }
+        if (item == null) return;
+
+        Map<Long, Integer> acumulado = parseSaboresEscolhidos(item.getSaboresEscolhidos());
+        escolhaGrupo.forEach((produtoId, quantidade) -> acumulado.merge(produtoId, quantidade, Integer::sum));
+        item.setSaboresEscolhidos(escreverSaboresEscolhidos(acumulado));
+    }
+
+    private Map<Long, Integer> parseSaboresEscolhidos(String texto) {
+        Map<Long, Integer> mapa = new java.util.LinkedHashMap<>();
+        if (texto == null || texto.isBlank()) return mapa;
+        for (String par : texto.split(";")) {
+            String[] partes = par.split(":");
+            if (partes.length != 2) continue;
+            try {
+                mapa.put(Long.parseLong(partes[0]), Integer.parseInt(partes[1]));
+            } catch (NumberFormatException ignored) { }
+        }
+        return mapa;
+    }
+
+    private String escreverSaboresEscolhidos(Map<Long, Integer> mapa) {
+        return mapa.entrySet().stream()
+            .map(e -> e.getKey() + ":" + e.getValue())
+            .collect(java.util.stream.Collectors.joining(";"));
     }
 
     private boolean tentarInterpretarComIA(SessaoWhatsapp s, String textoOriginal, List<CatalogClient.ProdutoNumeradoResponse> catalogo) {
@@ -511,6 +662,14 @@ public class ChatbotService {
         }
     }
 
+    private List<OrderClient.EscolhaSaborRequest> converterSaboresParaRequest(String saboresEscolhidos) {
+        Map<Long, Integer> mapa = parseSaboresEscolhidos(saboresEscolhidos);
+        if (mapa.isEmpty()) return null;
+        return mapa.entrySet().stream()
+            .map(e -> OrderClient.EscolhaSaborRequest.builder().produtoId(e.getKey()).quantidade(e.getValue()).build())
+            .toList();
+    }
+
     private void enviarPedido(SessaoWhatsapp s) {
         try {
             List<OrderClient.ItemEntregaRequest> itens = s.getItens().stream()
@@ -519,6 +678,7 @@ public class ChatbotService {
                     .precoUnitario(i.getPrecoUnitario()).quantidade(i.getQuantidade())
                     .comboId(i.getComboId())
                     .comboQuantidade(i.getComboId() != null ? i.getQuantidade() : null)
+                    .saboresEscolhidos(converterSaboresParaRequest(i.getSaboresEscolhidos()))
                     .build())
                 .toList();
 

@@ -17,5 +17,5 @@ public class ComboResponse {
     private String imagemBase64;
     private Integer numeroCardapio;
     private boolean ativo;
-    private List<ComboItemResponse> itens;
+    private List<ComboGrupoResponse> grupos;
 }

@@ -12,5 +12,5 @@ public class ComboResponseDto {
     private String nome;
     private BigDecimal preco;
     private boolean ativo;
-    private List<ComboItemDto> itens;
+    private List<ComboGrupoDto> grupos;
 }

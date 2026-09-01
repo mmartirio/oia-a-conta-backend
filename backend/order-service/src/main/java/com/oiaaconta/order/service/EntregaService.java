@@ -6,7 +6,6 @@ import com.oiaaconta.order.client.NotificationClient;
 import com.oiaaconta.order.client.WhatsappClient;
 import com.oiaaconta.order.dto.NotificacaoLocalizacaoEntrega;
 import com.oiaaconta.order.dto.NotificacaoMessage;
-import com.oiaaconta.order.dto.catalog.ComboItemDto;
 import com.oiaaconta.order.dto.catalog.ComboResponseDto;
 import com.oiaaconta.order.dto.request.EntregaRequest;
 import com.oiaaconta.order.dto.response.EntregaResponse;
@@ -26,7 +25,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Optional;
@@ -46,6 +44,7 @@ public class EntregaService {
     private final FreteService freteService;
     private final IfoodClient ifoodClient;
     private final GeocodingService geocodingService;
+    private final ComboEscolhaResolver comboEscolhaResolver;
 
     @Transactional
     public EntregaResponse criar(Long restauranteId, EntregaRequest request) {
@@ -201,8 +200,8 @@ public class EntregaService {
 
     // Busca a composição do combo (endpoint público — este fluxo não tem JWT
     // de usuário, é serviço-a-serviço a partir de um cliente anônimo) e
-    // expande em N ItemEntrega reais, mesmo cálculo de rateio usado pelo
-    // combo no PDV/comanda (PedidoService.expandirCombo).
+    // expande nos ItemEntrega reais dos sabores escolhidos pelo cliente (ver
+    // ComboEscolhaResolver) — mesma lógica usada por PedidoService.
     private List<ItemEntrega> expandirCombo(Entrega entrega, EntregaRequest.ItemRequest item, Long restauranteId) {
         ComboResponseDto combo;
         try {
@@ -219,16 +218,14 @@ public class EntregaService {
         }
 
         List<ItemEntrega> expandido = new ArrayList<>();
-        for (ComboItemDto comboItem : combo.getItens()) {
-            BigDecimal precoUnitario = comboItem.getValorAlocado()
-                .divide(BigDecimal.valueOf(comboItem.getQuantidade()), 2, RoundingMode.HALF_UP);
+        for (ComboEscolhaResolver.ItemResolvido resolvido : comboEscolhaResolver.resolver(combo, item.getSaboresEscolhidos(), comboQuantidade)) {
             expandido.add(ItemEntrega.builder()
                 .entrega(entrega)
-                .produtoId(comboItem.getProdutoId())
-                .produtoNome(comboItem.getProdutoNome())
-                .quantidade(comboItem.getQuantidade() * comboQuantidade)
+                .produtoId(resolvido.produtoId())
+                .produtoNome(resolvido.produtoNome())
+                .quantidade(resolvido.quantidade())
                 .observacao(item.getObservacao())
-                .precoUnitario(precoUnitario)
+                .precoUnitario(resolvido.precoUnitario())
                 .comboId(combo.getId())
                 .comboNome(combo.getNome())
                 .build());

@@ -78,6 +78,15 @@ public class SessaoWhatsapp {
     @Builder.Default
     private boolean lembreteCardapioEnviado = false;
 
+    // Combo cujos sabores o bot está perguntando no momento (estado
+    // ESCOLHENDO_SABORES_COMBO) e em qual grupo (0-based) da lista de grupos
+    // do combo — null quando não há escolha de sabor em andamento.
+    @Column(name = "combo_selecao_id")
+    private Long comboSelecaoId;
+
+    @Column(name = "combo_selecao_grupo_index")
+    private Integer comboSelecaoGrupoIndex;
+
     @OneToMany(mappedBy = "sessao", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     @Builder.Default
     private List<ItemCarrinho> itens = new ArrayList<>();

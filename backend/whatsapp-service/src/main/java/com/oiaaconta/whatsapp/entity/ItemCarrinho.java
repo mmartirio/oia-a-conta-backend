@@ -41,4 +41,11 @@ public class ItemCarrinho {
 
     @Column(name = "combo_nome", length = 150)
     private String comboNome;
+
+    // Sabores escolhidos pelo cliente dentro dos grupos do combo, se houver —
+    // formato simples "produtoId:quantidade;produtoId:quantidade", acumulado
+    // conforme cada grupo é respondido (ver ChatbotService). Null pra itens
+    // que não são combo, ou combos sem grupos configurados (sem escolha).
+    @Column(name = "sabores_escolhidos", columnDefinition = "TEXT")
+    private String saboresEscolhidos;
 }

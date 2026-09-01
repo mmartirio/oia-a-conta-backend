@@ -59,6 +59,14 @@ public interface OrderClient {
         private Integer quantidade;
         private Long comboId;
         private Integer comboQuantidade;
+        private List<EscolhaSaborRequest> saboresEscolhidos;
+    }
+
+    @Data
+    @Builder
+    class EscolhaSaborRequest {
+        private Long produtoId;
+        private Integer quantidade;
     }
 
     @Data

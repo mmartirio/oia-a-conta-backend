@@ -4,7 +4,6 @@ import com.oiaaconta.order.client.CatalogClient;
 import com.oiaaconta.order.client.CatalogClientErrorUtil;
 import com.oiaaconta.order.client.NotificationClient;
 import com.oiaaconta.order.dto.NotificacaoMessage;
-import com.oiaaconta.order.dto.catalog.ComboItemDto;
 import com.oiaaconta.order.dto.catalog.ComboResponseDto;
 import com.oiaaconta.order.dto.catalog.EstoqueBaixaRequestDto;
 import com.oiaaconta.order.dto.catalog.ItemQuantidadeDto;
@@ -45,6 +44,7 @@ public class PedidoService {
     private final FinanceiroService financeiroService;
     private final CatalogClient catalogClient;
     private final AuditoriaService auditoriaService;
+    private final ComboEscolhaResolver comboEscolhaResolver;
 
     @Transactional
     public PedidoResponse enviarParaCozinha(Long restauranteId, Long comandaId, PedidoRequest request, String authHeader) {
@@ -120,9 +120,9 @@ public class PedidoService {
         return toResponse(saved);
     }
 
-    // Busca a composição do combo no catalog-service e expande em N ItemPedido
-    // reais (produtoId real, preço unitário = valor rateado do combo / qtd da
-    // linha) — estoque e cozinha continuam enxergando produtos normais.
+    // Busca a composição do combo no catalog-service e expande nos ItemPedido
+    // reais dos sabores escolhidos pelo cliente (ver ComboEscolhaResolver) —
+    // estoque e cozinha continuam enxergando produtos normais.
     private List<ItemPedido> expandirCombo(Pedido pedido, PedidoRequest.ItemRequest item, Long restauranteId, String authHeader) {
         ComboResponseDto combo;
         try {
@@ -141,16 +141,14 @@ public class PedidoService {
         }
 
         List<ItemPedido> expandido = new ArrayList<>();
-        for (ComboItemDto comboItem : combo.getItens()) {
-            BigDecimal precoUnitario = comboItem.getValorAlocado()
-                .divide(BigDecimal.valueOf(comboItem.getQuantidade()), 2, RoundingMode.HALF_UP);
+        for (ComboEscolhaResolver.ItemResolvido resolvido : comboEscolhaResolver.resolver(combo, item.getSaboresEscolhidos(), comboQuantidade)) {
             expandido.add(ItemPedido.builder()
                 .pedido(pedido)
-                .produtoId(comboItem.getProdutoId())
-                .produtoNome(comboItem.getProdutoNome())
-                .quantidade(comboItem.getQuantidade() * comboQuantidade)
+                .produtoId(resolvido.produtoId())
+                .produtoNome(resolvido.produtoNome())
+                .quantidade(resolvido.quantidade())
                 .observacao(item.getObservacao())
-                .precoUnitario(precoUnitario)
+                .precoUnitario(resolvido.precoUnitario())
                 .comboId(combo.getId())
                 .comboNome(combo.getNome())
                 .build());

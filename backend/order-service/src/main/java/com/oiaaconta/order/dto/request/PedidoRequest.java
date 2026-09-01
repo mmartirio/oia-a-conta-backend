@@ -43,5 +43,10 @@ public class PedidoRequest {
         // do combo (default 1).
         private Long comboId;
         private Integer comboQuantidade;
+
+        // Sabores escolhidos pelo cliente dentro de cada grupo do combo (ver
+        // EscolhaSaborRequest) — vazio/nulo = usa o primeiro produto elegível
+        // de cada grupo como padrão.
+        private List<EscolhaSaborRequest> saboresEscolhidos;
     }
 }
