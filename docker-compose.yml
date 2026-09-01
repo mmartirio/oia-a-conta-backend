@@ -1,3 +1,10 @@
+# Limite de heap/memória padrão pros serviços Java — sem isso, cada JVM usa
+# o teto padrão de 25% da RAM do HOST (não do container) como MaxHeapSize,
+# bem mais do que qualquer um desses microsserviços realmente usa (uso real
+# observado em produção: 234-412MB por serviço) — reusado via YAML anchor
+# em cada serviço Java pra não repetir a string 10 vezes.
+x-jvm-mem: &jvm_mem_limitada "-Xmx300m -Xss256k -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC -XX:ReservedCodeCacheSize=64m"
+
 networks:
   oia-net:
     driver: bridge
@@ -78,6 +85,7 @@ services:
     container_name: oia-discovery
     environment:
       TZ: America/Sao_Paulo
+      JAVA_TOOL_OPTIONS: *jvm_mem_limitada
     # Sem porta pro host — o dashboard do Eureka não tem autenticação, fica só
     # acessível dentro da rede interna. Pra inspecionar localmente, use
     # `docker port oia-discovery` + túnel, ou reabra a porta temporariamente.
@@ -99,6 +107,7 @@ services:
     container_name: oia-auth
     environment:
       TZ: America/Sao_Paulo
+      JAVA_TOOL_OPTIONS: *jvm_mem_limitada
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_auth
       SPRING_DATASOURCE_USERNAME: oiaconta
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
@@ -139,6 +148,7 @@ services:
     container_name: oia-catalog
     environment:
       TZ: America/Sao_Paulo
+      JAVA_TOOL_OPTIONS: *jvm_mem_limitada
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_catalog
       SPRING_DATASOURCE_USERNAME: oiaconta
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
@@ -171,6 +181,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-table
     environment:
+      JAVA_TOOL_OPTIONS: *jvm_mem_limitada
       TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_table
       SPRING_DATASOURCE_USERNAME: oiaconta
@@ -200,6 +211,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-notification
     environment:
+      JAVA_TOOL_OPTIONS: *jvm_mem_limitada
       TZ: America/Sao_Paulo
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
@@ -224,6 +236,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-order
     environment:
+      JAVA_TOOL_OPTIONS: *jvm_mem_limitada
       TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_order
       SPRING_DATASOURCE_USERNAME: oiaconta
@@ -265,6 +278,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-whatsapp
     environment:
+      JAVA_TOOL_OPTIONS: *jvm_mem_limitada
       TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_whatsapp
       SPRING_DATASOURCE_USERNAME: oiaconta
@@ -307,6 +321,13 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: oia-ollama
+    # Teto de segurança — sem isso, o processo do Ollama pode crescer sem
+    # limite e derrubar o host inteiro (não só esse container) num servidor
+    # com pouca RAM livre. Se bater o teto, o container morre (OOMKilled) e
+    # reinicia sozinho (restart: unless-stopped abaixo), em vez de travar a
+    # VPS toda.
+    mem_limit: 1200m
+    restart: unless-stopped
     entrypoint: ["/bin/sh", "-c"]
     command: >
       "ollama serve &
@@ -337,6 +358,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-ifood
     environment:
+      JAVA_TOOL_OPTIONS: *jvm_mem_limitada
       TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_ifood
       SPRING_DATASOURCE_USERNAME: oiaconta
@@ -369,6 +391,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-billing
     environment:
+      JAVA_TOOL_OPTIONS: *jvm_mem_limitada
       TZ: America/Sao_Paulo
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_billing
       SPRING_DATASOURCE_USERNAME: oiaconta
@@ -447,6 +470,7 @@ services:
       dockerfile: Dockerfile
     container_name: oia-gateway
     environment:
+      JAVA_TOOL_OPTIONS: *jvm_mem_limitada
       TZ: America/Sao_Paulo
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
