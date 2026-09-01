@@ -277,10 +277,17 @@ public class EntregaService {
                 && !Boolean.TRUE.equals(entrega.getPagamentoPixValidado())) {
             throw new BusinessException("Valide o pagamento do PIX antes de aceitar este pedido");
         }
-        entrega.setStatus(StatusEntrega.ACEITA);
+        // Pedido PIX de cliente fica em CONFIRMADA (aceito, cliente já avisado,
+        // mas ainda NÃO foi mandado pra cozinha) — só vai pra produção com uma
+        // ação manual separada (ver enviarParaProducao), a pedido explícito do
+        // dono: nada de disparo automático pra cozinha assim que aceitar.
+        boolean pixAguardandoEnvio = Boolean.TRUE.equals(entrega.getOrigemWhatsapp())
+            && entrega.getMetodoPagamento() == MetodoPagamento.PIX;
+        entrega.setStatus(pixAguardandoEnvio ? StatusEntrega.CONFIRMADA : StatusEntrega.ACEITA);
         Entrega saved = entregaRepository.save(entrega);
 
-        if (Boolean.TRUE.equals(entrega.getOrigemWhatsapp()) || Boolean.TRUE.equals(entrega.getOrigemIfood())) {
+        if (!pixAguardandoEnvio
+                && (Boolean.TRUE.equals(entrega.getOrigemWhatsapp()) || Boolean.TRUE.equals(entrega.getOrigemIfood()))) {
             try {
                 Long pedidoId = orchestrationService.criarPedidoCozinha(saved);
                 saved.setPedidoCozinhaId(pedidoId);
@@ -296,6 +303,27 @@ public class EntregaService {
             notificarIfood(saved, "CONFIRMADA");
         }
 
+        return toResponse(saved);
+    }
+
+    // Ação manual separada — só existe pedido PIX parado em CONFIRMADA (ver
+    // confirmar() acima). Quem decide mandar pra cozinha é uma pessoa, não o
+    // sistema, mesmo já com o pagamento validado.
+    @Transactional
+    public EntregaResponse enviarParaProducao(Long restauranteId, Long id) {
+        Entrega entrega = find(restauranteId, id);
+        if (entrega.getStatus() != StatusEntrega.CONFIRMADA) {
+            throw new BusinessException("Pedido não está aguardando envio pra produção");
+        }
+        entrega.setStatus(StatusEntrega.ACEITA);
+        Entrega saved = entregaRepository.save(entrega);
+        try {
+            Long pedidoId = orchestrationService.criarPedidoCozinha(saved);
+            saved.setPedidoCozinhaId(pedidoId);
+            saved = entregaRepository.save(saved);
+        } catch (Exception e) {
+            log.warn("Falha ao criar pedido na cozinha para entrega #{}", saved.getId(), e);
+        }
         return toResponse(saved);
     }
 
