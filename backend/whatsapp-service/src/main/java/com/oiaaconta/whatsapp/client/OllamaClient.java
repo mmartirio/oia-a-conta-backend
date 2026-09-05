@@ -120,6 +120,12 @@ public class OllamaClient {
             Exemplo (cardápio só com "Coca-cola lata" e "Guaraná lata" como bebidas): mensagem "quero 1 carne e 1 refrigerante" deve virar:
             {"itens":[{"produtoId":2,"quantidade":1}],"endereco":null,"formaPagamento":null,"itensNaoReconhecidos":["refrigerante"]}
             (repare que "itensNaoReconhecidos" tem só a palavra "refrigerante", não a frase toda — o item "carne" foi resolvido normalmente e NÃO entra nessa lista.)
+
+            MUITO IMPORTANTE — NÃO INVENTE PEDIDO: a mensagem pode ser papo comum sem nenhuma relação com fazer um pedido (saudação, agradecimento, pergunta sobre o status/prazo da entrega, reclamação, confirmação tipo "sim"/"tá bom"). Nesses casos NUNCA force um item do cardápio só porque alguma palavra parece parecida — devolva "itens" e "itensNaoReconhecidos" vazios e "endereco"/"formaPagamento" null. Só inclua um item se o cliente estiver claramente pedindo comida/bebida.
+            Exemplo: mensagem "Boa noite" (sem nenhum produto, endereço ou pagamento mencionado) deve virar exatamente:
+            {"itens":[],"endereco":null,"formaPagamento":null,"itensNaoReconhecidos":[]}
+            Exemplo: mensagem "Já está vindo né isso? Demora quantos minutos?" (pergunta sobre a entrega, não é um pedido novo) deve virar exatamente:
+            {"itens":[],"endereco":null,"formaPagamento":null,"itensNaoReconhecidos":[]}
             """.formatted(cardapioTexto, enderecoAtual, pagamentoAtual, mensagemCliente);
     }
 

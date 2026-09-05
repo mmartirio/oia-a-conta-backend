@@ -50,6 +50,22 @@ public class ChatbotService {
     // IA. Qualquer letra na mensagem cai no caminho com IA (Ollama).
     private static final Pattern SOMENTE_NUMEROS_SEPARADOS = Pattern.compile("^[\\d\\s,;]+$");
 
+    // Papo comum sem nenhum conteúdo de pedido — nunca deve virar chamada de
+    // IA. Sem isso, um modelo pequeno/local (ver OllamaClient) pode alucinar
+    // um item do cardápio a partir de uma saudação (ex: "Boa noite" virando
+    // "1x Carne" no carrinho), corrompendo a sessão do cliente com endereço e
+    // pagamento inventados — foi exatamente o que aconteceu em produção em
+    // 2026-09-02 (ver conversa "228715699126318@lid" do restaurante 1).
+    // Casa a mensagem INTEIRA (depois de normalizada), não um trecho dela.
+    private static final Pattern PAPO_SEM_PEDIDO = Pattern.compile(
+        "^(oi+|ol[áa]|opa|eae?|e a[íi])[!.?]*$|" +
+        "^(bom\\s?dia|boa\\s?-?\\s?tarde|boa\\s?-?\\s?noite)[!.?]*$|" +
+        "^(obrigad[oa]s?|obg|vlw|valeu)[!.?]*$|" +
+        "^(tudo\\s?bem|blz|beleza|show|ok(ay)?|certo|entendi|isso|exato|t[áa]|viu|n[ée])[!.?]*$|" +
+        "^(sim|n[ãa]o)[!.?]*$|" +
+        "^[?!.\\s]+$"
+    );
+
     // Trava por telefone+restaurante — evita a condição de corrida do
     // find-then-create de SessaoWhatsapp: sem isso, duas mensagens quase
     // simultâneas do mesmo número (cada uma num thread do pool @Async) podiam
@@ -293,10 +309,13 @@ public class ChatbotService {
 
         if (!catalogo.isEmpty() && SOMENTE_NUMEROS_SEPARADOS.matcher(textoLimpo).matches()) {
             interpretou = tentarInterpretarNumeros(s, textoLimpo, catalogo);
-        } else if (!catalogo.isEmpty() && textoOriginal.trim().length() >= 8) {
+        } else if (!catalogo.isEmpty() && textoOriginal.trim().length() >= 8
+                   && !PAPO_SEM_PEDIDO.matcher(textoLimpo).matches()) {
             // Mensagem com letras (nome de produto/endereço/pagamento
             // misturados) — só vale a pena chamar a IA se tiver conteúdo
-            // (evita gastar uma chamada de inferência em "oi"/"ok").
+            // de pedido de verdade (evita gastar uma chamada de inferência
+            // em "oi"/"ok", e evita o modelo alucinar um item a partir de
+            // papo comum — ver PAPO_SEM_PEDIDO).
             interpretou = tentarInterpretarComIA(s, textoOriginal, catalogo);
         }
 
@@ -750,8 +769,11 @@ public class ChatbotService {
             s.setEntregaId(resp.getId());
             s.setEstado("PIX".equals(s.getMetodoPagamento()) ? EstadoSessao.AGUARDANDO_PIX : EstadoSessao.PEDIDO_ENVIADO);
 
+            String freteLinha = (resp.getValorFrete() != null && resp.getValorFrete().compareTo(BigDecimal.ZERO) > 0)
+                ? "\n\n🛵 *Taxa de entrega:* R$ " + String.format("%.2f", resp.getValorFrete())
+                : "";
             enviar(s.getTelefone(), mensagemService.resolverTexto(s.getRestauranteId(), "CHATBOT_PEDIDO_ENVIADO",
-                Map.of("PEDIDO_ID", String.valueOf(resp.getId()))), s.getRestauranteId());
+                Map.of("PEDIDO_ID", String.valueOf(resp.getId()), "FRETE_LINHA", freteLinha)), s.getRestauranteId());
 
             // Manda a chave PIX na hora, direto (em vez de esperar a
             // notificação assíncrona por entregaId) — a sessão só teve o

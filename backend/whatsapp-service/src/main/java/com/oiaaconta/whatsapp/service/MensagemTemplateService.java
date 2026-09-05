@@ -70,7 +70,7 @@ public class MensagemTemplateService {
         put("CHATBOT_PEDIR_OBSERVACAO",
             "Alguma *observação* para o pedido? (ex: sem cebola)\nOu digite *não* para pular.");
         put("CHATBOT_PEDIDO_ENVIADO",
-            "✅ *Pedido enviado com sucesso!* 🎉\n\nSeu pedido #{PEDIDO_ID} foi recebido e está sendo processado. Você receberá atualizações aqui!");
+            "✅ *Pedido enviado com sucesso!* 🎉\n\nSeu pedido #{PEDIDO_ID} foi recebido e está sendo processado.{FRETE_LINHA}\n\nVocê receberá atualizações aqui!");
         put("CHATBOT_CANCELADO",
             "Pedido cancelado. Digite qualquer coisa para iniciar um novo pedido.");
         put("CHATBOT_JA_ENVIADO",
@@ -90,7 +90,7 @@ public class MensagemTemplateService {
         put("CHATBOT_BOAS_VINDAS",       "Variáveis disponíveis: {NOME}, {RESTAURANTE}");
         put("CHATBOT_PEDIR_NOME",        "Variável disponível: {RESTAURANTE}");
         put("CHATBOT_SAUDACAO_APOS_NOME","Variável disponível: {NOME}");
-        put("CHATBOT_PEDIDO_ENVIADO",    "Variável disponível: {PEDIDO_ID}");
+        put("CHATBOT_PEDIDO_ENVIADO",    "Variáveis disponíveis: {PEDIDO_ID}, {FRETE_LINHA} (frase pronta com a taxa de entrega, vazia se não houver frete)");
         put("PEDIDO_PIX",                "Variáveis disponíveis: {PIX_CHAVE}, {VALOR}");
         put("PEDIDO_REJEITADO",          "Variável disponível: {MOTIVO}");
         put("CHATBOT_FECHADO",           "Variável disponível: {MOTIVO}");

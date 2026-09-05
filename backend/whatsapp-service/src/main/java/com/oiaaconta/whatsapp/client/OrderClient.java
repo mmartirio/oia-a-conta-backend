@@ -75,6 +75,7 @@ public interface OrderClient {
         private String status;
         private String metodoPagamento;
         private BigDecimal total;
+        private BigDecimal valorFrete;
         private String pixChave;
     }
 }
