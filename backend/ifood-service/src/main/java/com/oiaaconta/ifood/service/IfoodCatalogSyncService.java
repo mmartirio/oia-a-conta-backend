@@ -51,6 +51,19 @@ public class IfoodCatalogSyncService {
     private final IfoodMapeamentoRepository mapeamentoRepository;
     private final IfoodVinculoService vinculoService;
 
+    // Chamado pelo catalog-service (best-effort, engolido em try/catch pelo
+    // call-site) toda vez que um produto/combo é criado, editado ou
+    // desativado — mantém o catálogo do iFood em dia sem esperar o
+    // scheduler periódico ou o botão "Sincronizar agora". Não-op silencioso
+    // pra restaurante sem vínculo ativo com o iFood (a grande maioria).
+    @Transactional
+    public void sincronizarSeVinculado(Long restauranteId) {
+        boolean vinculado = merchantRepository.findByRestauranteId(restauranteId)
+            .map(IfoodMerchant::isAtivo).orElse(false);
+        if (!vinculado) return;
+        sincronizar(restauranteId);
+    }
+
     @Transactional
     public IfoodCatalogoSyncResponse sincronizar(Long restauranteId) {
         IfoodMerchant merchant = merchantAtivo(restauranteId);

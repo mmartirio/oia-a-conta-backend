@@ -1,5 +1,6 @@
 package com.oiaaconta.catalog.service;
 
+import com.oiaaconta.catalog.client.IfoodSyncClient;
 import com.oiaaconta.catalog.dto.request.ProdutoRequest;
 import com.oiaaconta.catalog.dto.response.ProdutoResponse;
 import com.oiaaconta.catalog.entity.Produto;
@@ -9,13 +10,17 @@ import com.oiaaconta.catalog.repository.CategoriaRepository;
 import com.oiaaconta.catalog.repository.ProdutoRepository;
 import com.oiaaconta.catalog.util.ImagemValidator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ProdutoService {
 
     // ~1MB de imagem original vira ~1,4M de caracteres em base64 — teto para a foto do produto.
@@ -23,6 +28,7 @@ public class ProdutoService {
 
     private final ProdutoRepository produtoRepository;
     private final CategoriaRepository categoriaRepository;
+    private final IfoodSyncClient ifoodSyncClient;
 
     public List<ProdutoResponse> listar(Long restauranteId, boolean incluirInativos) {
         List<Produto> produtos = incluirInativos
@@ -52,6 +58,7 @@ public class ProdutoService {
             .numeroCardapio(request.getNumeroCardapio())
             .ativo(true)
             .build());
+        notificarIfood(restauranteId);
         return toResponse(produto, restauranteId);
     }
 
@@ -66,7 +73,9 @@ public class ProdutoService {
         produto.setNumeroCardapio(request.getNumeroCardapio());
         // null = campo ausente, não mexe na imagem atual; "" explícito = remove a imagem.
         produto.setImagemBase64(validarImagemOuLimpar(request.getImagemBase64(), produto.getImagemBase64()));
-        return toResponse(produtoRepository.save(produto), restauranteId);
+        ProdutoResponse response = toResponse(produtoRepository.save(produto), restauranteId);
+        notificarIfood(restauranteId);
+        return response;
     }
 
     @CacheEvict(value = "cardapio-publico", key = "#restauranteId")
@@ -79,7 +88,38 @@ public class ProdutoService {
         Produto produto = produtoRepository.findByIdAndRestauranteId(id, restauranteId)
             .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado"));
         produto.setAtivo(ativo);
-        return toResponse(produtoRepository.save(produto), restauranteId);
+        ProdutoResponse response = toResponse(produtoRepository.save(produto), restauranteId);
+        notificarIfood(restauranteId);
+        return response;
+    }
+
+    // Adia pra depois do commit quando chamado de dentro de uma transação
+    // (evita o ifood-service reler o cardápio, via HTTP/outra conexão,
+    // antes da mudança estar commitada — ver ComboService, que tem o
+    // mesmo helper por causa disso). Nenhum método aqui é @Transactional
+    // hoje, mas o helper fica seguro pra isso mudar sem reintroduzir o bug.
+    private void notificarIfood(Long restauranteId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    dispararSyncIfood(restauranteId);
+                }
+            });
+        } else {
+            dispararSyncIfood(restauranteId);
+        }
+    }
+
+    // Best-effort — nunca deve travar o CRUD local por uma falha na
+    // integração externa. É um no-op silencioso pra quem não tem iFood
+    // vinculado (ver IfoodCatalogSyncService.sincronizarSeVinculado).
+    private void dispararSyncIfood(Long restauranteId) {
+        try {
+            ifoodSyncClient.sincronizarCatalogo(restauranteId);
+        } catch (Exception e) {
+            log.warn("Falha ao notificar iFood sobre mudança de produto (restaurante {}): {}", restauranteId, e.getMessage());
+        }
     }
 
     private ProdutoResponse toResponse(Produto p, Long restauranteId) {
