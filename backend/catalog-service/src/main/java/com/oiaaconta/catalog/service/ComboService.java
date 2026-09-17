@@ -1,5 +1,6 @@
 package com.oiaaconta.catalog.service;
 
+import com.oiaaconta.catalog.client.IfoodSyncClient;
 import com.oiaaconta.catalog.dto.request.ComboGrupoRequest;
 import com.oiaaconta.catalog.dto.request.ComboRequest;
 import com.oiaaconta.catalog.dto.response.ComboGrupoProdutoResponse;
@@ -16,8 +17,11 @@ import com.oiaaconta.catalog.repository.ComboRepository;
 import com.oiaaconta.catalog.repository.ProdutoRepository;
 import com.oiaaconta.catalog.util.ImagemValidator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,6 +29,7 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ComboService {
 
     private static final int IMAGEM_MAX_CHARS = 1_400_000;
@@ -33,6 +38,7 @@ public class ComboService {
     private final ComboGrupoRepository comboGrupoRepository;
     private final ComboGrupoProdutoRepository comboGrupoProdutoRepository;
     private final ProdutoRepository produtoRepository;
+    private final IfoodSyncClient ifoodSyncClient;
 
     public List<ComboResponse> listar(Long restauranteId, boolean apenasAtivos) {
         List<Combo> combos = apenasAtivos
@@ -57,6 +63,7 @@ public class ComboService {
             .ativo(true)
             .build());
         salvarGrupos(combo.getId(), request.getGrupos());
+        notificarIfood(restauranteId);
         return toResponse(combo, restauranteId);
     }
 
@@ -76,13 +83,46 @@ public class ComboService {
         // (mesma causa do bug corrigido em combo_itens).
         comboGrupoRepository.flush();
         salvarGrupos(id, request.getGrupos());
+        notificarIfood(restauranteId);
         return toResponse(combo, restauranteId);
     }
 
     public ComboResponse alterarAtivo(Long restauranteId, Long id, boolean ativo) {
         Combo combo = buscarEntidade(restauranteId, id);
         combo.setAtivo(ativo);
-        return toResponse(comboRepository.save(combo), restauranteId);
+        ComboResponse response = toResponse(comboRepository.save(combo), restauranteId);
+        notificarIfood(restauranteId);
+        return response;
+    }
+
+    // criar/atualizar são @Transactional — chamar o Feign direto aqui
+    // dispararia a sincronização ANTES do commit local, e o ifood-service
+    // busca o cardápio de volta via HTTP (outra conexão), que ainda não
+    // enxergaria os grupos/produtos recém-salvos (READ COMMITTED entre
+    // conexões diferentes). Adia pra depois do commit quando há transação
+    // ativa; chama direto quando não há (ex.: alterarAtivo).
+    private void notificarIfood(Long restauranteId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    dispararSyncIfood(restauranteId);
+                }
+            });
+        } else {
+            dispararSyncIfood(restauranteId);
+        }
+    }
+
+    // Best-effort — nunca deve travar o CRUD local por uma falha na
+    // integração externa. É um no-op silencioso pra quem não tem iFood
+    // vinculado (ver IfoodCatalogSyncService.sincronizarSeVinculado).
+    private void dispararSyncIfood(Long restauranteId) {
+        try {
+            ifoodSyncClient.sincronizarCatalogo(restauranteId);
+        } catch (Exception e) {
+            log.warn("Falha ao notificar iFood sobre mudança de combo (restaurante {}): {}", restauranteId, e.getMessage());
+        }
     }
 
     private void validarGrupos(Long restauranteId, List<ComboGrupoRequest> grupos) {
