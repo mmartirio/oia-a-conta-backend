@@ -83,6 +83,20 @@ public class PausaFuncionamentoService {
         pausaRepository.delete(pausa);
     }
 
+    // Reabrir a loja manualmente precisa ser autoritativo: se houver uma pausa
+    // em andamento (encerramento antecipado ou programada) ela continuaria
+    // fechando a loja mesmo com fechadoManualmente = false, deixando o toggle
+    // "Loja aberta" mentiroso. Cancela só as que já começaram, não as futuras.
+    @Transactional
+    public void cancelarAtivas(Long restauranteId) {
+        LocalDateTime agora = LocalDateTime.now();
+        List<PausaFuncionamento> ativas = pausaRepository
+            .findByRestauranteIdAndFimAfterOrderByInicioAsc(restauranteId, agora).stream()
+            .filter(p -> !p.getInicio().isAfter(agora))
+            .toList();
+        pausaRepository.deleteAll(ativas);
+    }
+
     public StatusFuncionamentoResponse getStatus(Long restauranteId) {
         LocalDateTime agora = LocalDateTime.now();
 

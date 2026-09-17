@@ -18,6 +18,7 @@ public class ConfiguracaoService {
 
     private final RestauranteConfigRepository configRepository;
     private final AuditoriaService auditoriaService;
+    private final PausaFuncionamentoService pausaFuncionamentoService;
 
     public ConfiguracaoResponse get(Long restauranteId) {
         return configRepository.findByRestauranteId(restauranteId)
@@ -65,6 +66,13 @@ public class ConfiguracaoService {
         config.setMotivoFechamentoManual(config.isFechadoManualmente() ? request.getMotivo() : null);
 
         ConfiguracaoResponse response = toResponse(configRepository.save(config));
+
+        if (!config.isFechadoManualmente()) {
+            // Sem isso, uma pausa (programada ou encerramento antecipado) já em
+            // andamento continuava fechando a loja mesmo depois de reabrir.
+            pausaFuncionamentoService.cancelarAtivas(restauranteId);
+        }
+
         auditoriaService.registrar(restauranteId, "CONFIGURACAO_ALTERADA",
             config.isFechadoManualmente() ? "Loja fechada manualmente" + (request.getMotivo() != null ? " — " + request.getMotivo() : "")
                 : "Loja reaberta manualmente",
