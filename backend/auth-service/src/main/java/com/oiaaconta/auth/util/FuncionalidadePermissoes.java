@@ -19,6 +19,7 @@ public final class FuncionalidadePermissoes {
         "Delivery", Set.of("DELIVERY"),
         "Cozinha em tempo real", Set.of("COZINHA"),
         "Controle de mesas", Set.of("MESAS"),
+        "Atendimento de garçom", Set.of("GARCOM", "COMANDA"),
         "PDV / Caixa", Set.of("CAIXA_PDV"),
         "Gestão de usuários", Set.of("USUARIOS"),
         "Relatórios financeiros", Set.of("FINANCEIRO"),
@@ -27,9 +28,9 @@ public final class FuncionalidadePermissoes {
     );
 
     // Permissões que ALGUMA funcionalidade controla — as que não aparecem em
-    // nenhuma entrada do MAPA (DASHBOARD, CLIENTES, GARCOM, COMANDA,
-    // ESTOQUE, MARKETING, SUPORTE, IFOOD_CONEXAO, CONFIG_*) não são
-    // restringíveis por plano e continuam liberadas pro grupo decidir.
+    // nenhuma entrada do MAPA (DASHBOARD, CLIENTES, ESTOQUE, MARKETING,
+    // SUPORTE, IFOOD_CONEXAO, CONFIG_*) não são restringíveis por plano e
+    // continuam liberadas pro grupo decidir.
     private static final Set<String> PERMISSOES_CONTROLADAS = MAPA.values().stream()
         .flatMap(Set::stream)
         .collect(Collectors.toUnmodifiableSet());
