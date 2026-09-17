@@ -87,19 +87,30 @@ jobs:
 
       - name: Deploy to server
         uses: appleboy/ssh-action@v1
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: JWT_SECRET
+          # Rebuildar as ~11 imagens do zero na VPS passa fácil dos 10min
+          # (default da action) quando o cache de build está frio.
+          command_timeout: 40m
           script: |
             cd /opt/oia-a-conta-backend
             git pull origin main
             touch .env
-            if grep -q '^JWT_SECRET=' .env; then
-              sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${{ secrets.JWT_SECRET }}|" .env
-            else
-              echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
-            fi
+            # Reescreve a linha em vez de sed com o secret interpolado no
+            # próprio texto do script: um valor com "|" ou quebra de linha
+            # (aconteceu) quebra a expressão do sed ("unterminated 's'
+            # command"). grep -v + append funciona com qualquer conteúdo.
+            grep -v '^JWT_SECRET=' .env > .env.tmp || true
+            mv .env.tmp .env
+            # O erro de sed acima só apareceu porque o secret tinha uma
+            # quebra de linha no valor — remove isso aqui também, senão
+            # vira uma linha extra quebrada no .env.
+            echo "JWT_SECRET=$(printf '%s' "$JWT_SECRET" | tr -d '\r\n')" >> .env
             docker compose pull
             docker compose build
             docker compose up -d --remove-orphans
