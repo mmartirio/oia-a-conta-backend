@@ -36,8 +36,18 @@ public class Plano {
     @Builder.Default
     private Integer limiteMesas = 20;
 
+    // Usada só quando o plano NÃO exige modalidade (ex: PRO). Planos que
+    // exigem modalidade usam funcionalidadesMesas/funcionalidadesDelivery
+    // abaixo, já que os recursos liberados diferem entre presencial e
+    // delivery (ex: Start UP não tem "Controle de mesas" no delivery).
     @Column(name = "funcionalidades", columnDefinition = "TEXT")
     private String funcionalidades;
+
+    @Column(name = "funcionalidades_mesas", columnDefinition = "TEXT")
+    private String funcionalidadesMesas;
+
+    @Column(name = "funcionalidades_delivery", columnDefinition = "TEXT")
+    private String funcionalidadesDelivery;
 
     @Column(name = "periodo_teste")
     @Builder.Default

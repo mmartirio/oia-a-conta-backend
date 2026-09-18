@@ -67,6 +67,8 @@ public class BillingService {
         plano.setLimiteUsuarios(dados.getLimiteUsuarios());
         plano.setLimiteMesas(dados.getLimiteMesas());
         plano.setFuncionalidades(dados.getFuncionalidades());
+        plano.setFuncionalidadesMesas(dados.getFuncionalidadesMesas());
+        plano.setFuncionalidadesDelivery(dados.getFuncionalidadesDelivery());
         plano.setAtivo(dados.isAtivo());
         plano.setDestaque(dados.isDestaque());
         plano.setExigeModalidadeOperacao(dados.isExigeModalidadeOperacao());
