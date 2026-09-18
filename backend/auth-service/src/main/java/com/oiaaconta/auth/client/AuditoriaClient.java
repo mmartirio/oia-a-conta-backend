@@ -26,6 +26,9 @@ public interface AuditoriaClient {
     @GetMapping("/internal/contratos/{restauranteId}/limites-plano")
     PlanoLimitesResponse buscarLimitesPlano(@PathVariable Long restauranteId);
 
+    @GetMapping("/internal/contratos/restaurante/{restauranteId}/restricoes")
+    RestricoesOperacaoResponse buscarRestricoesOperacao(@PathVariable Long restauranteId);
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -43,5 +46,12 @@ public interface AuditoriaClient {
         private String funcionalidades;
         private Integer limiteUsuarios;
         private Integer limiteMesas;
+    }
+
+    // Só o campo que este serviço usa; os demais da resposta do
+    // billing-service são ignorados na desserialização.
+    @Data
+    class RestricoesOperacaoResponse {
+        private Integer limiteAtendentesWhatsapp;
     }
 }

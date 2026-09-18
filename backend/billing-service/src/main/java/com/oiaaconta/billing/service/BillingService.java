@@ -1,10 +1,12 @@
 package com.oiaaconta.billing.service;
 
 import com.oiaaconta.billing.client.AuthInternalClient;
+import com.oiaaconta.billing.dto.response.RestricoesOperacaoResponse;
 import com.oiaaconta.billing.entity.Contrato;
 import com.oiaaconta.billing.entity.LinkSocial;
 import com.oiaaconta.billing.entity.Pagamento;
 import com.oiaaconta.billing.entity.Plano;
+import com.oiaaconta.billing.enums.ModalidadeOperacao;
 import com.oiaaconta.billing.enums.StatusContrato;
 import com.oiaaconta.billing.enums.StatusPagamento;
 import com.oiaaconta.billing.repository.ContratoRepository;
@@ -67,6 +69,10 @@ public class BillingService {
         plano.setFuncionalidades(dados.getFuncionalidades());
         plano.setAtivo(dados.isAtivo());
         plano.setDestaque(dados.isDestaque());
+        plano.setExigeModalidadeOperacao(dados.isExigeModalidadeOperacao());
+        plano.setLimiteAtendentesWhatsapp(dados.getLimiteAtendentesWhatsapp());
+        plano.setLimiteAtendentesWhatsappMesas(dados.getLimiteAtendentesWhatsappMesas());
+        plano.setLimiteAtendentesWhatsappDelivery(dados.getLimiteAtendentesWhatsappDelivery());
         return planoRepository.save(plano);
     }
 
@@ -139,7 +145,7 @@ public class BillingService {
 
     @Transactional
     @SuppressWarnings("null")
-    public Contrato criarContrato(Long restauranteId, Long planoId) {
+    public Contrato criarContrato(Long restauranteId, Long planoId, ModalidadeOperacao modalidadeOperacao) {
         if (restauranteId == null || planoId == null) {
             throw new IllegalArgumentException("restauranteId e planoId são obrigatórios");
         }
@@ -148,6 +154,9 @@ public class BillingService {
         }
         Plano plano = planoRepository.findById(planoId)
             .orElseThrow(() -> new NoSuchElementException("Plano não encontrado"));
+        if (plano.isExigeModalidadeOperacao() && modalidadeOperacao == null) {
+            throw new IllegalArgumentException("Este plano exige a escolha da modalidade de operação (mesas ou delivery)");
+        }
         LocalDate hoje = LocalDate.now();
         return contratoRepository.save(Contrato.builder()
             .restauranteId(restauranteId)
@@ -156,7 +165,53 @@ public class BillingService {
             .dataInicio(hoje)
             .dataVencimento(hoje.plusDays(30))
             .dataProximoVencimento(hoje.plusDays(30))
+            .modalidadeOperacao(plano.isExigeModalidadeOperacao() ? modalidadeOperacao : null)
             .build());
+    }
+
+    // Troca de modalidade depois da criação do contrato — usada pelo suporte
+    // (SUPER_ADMIN) quando o dono pede pra mudar de mesas pra delivery ou
+    // vice-versa. Só se aplica a planos que exigem modalidade; nos demais é
+    // sempre null e essa troca não faz sentido.
+    @Transactional
+    @SuppressWarnings("null")
+    public Contrato atualizarModalidadeOperacao(Long contratoId, ModalidadeOperacao modalidadeOperacao) {
+        Contrato contrato = contratoRepository.findById(contratoId)
+            .orElseThrow(() -> new NoSuchElementException("Contrato não encontrado"));
+        if (!contrato.getPlano().isExigeModalidadeOperacao()) {
+            throw new IllegalStateException("O plano deste contrato não usa modalidade de operação");
+        }
+        if (modalidadeOperacao == null) {
+            throw new IllegalArgumentException("modalidadeOperacao é obrigatória");
+        }
+        contrato.setModalidadeOperacao(modalidadeOperacao);
+        return contratoRepository.save(contrato);
+    }
+
+    // Resolve, num valor só por restrição, o que os outros serviços
+    // (table/order/ifood/auth) precisam saber sem replicar a lógica de
+    // modalidade cada um por conta própria.
+    public RestricoesOperacaoResponse buscarRestricoesOperacao(Long restauranteId) {
+        Contrato contrato = buscarContratoDoRestaurante(restauranteId);
+        Plano plano = contrato.getPlano();
+        boolean restringe = plano.isExigeModalidadeOperacao();
+        ModalidadeOperacao modalidade = contrato.getModalidadeOperacao();
+
+        Integer limiteWhatsapp;
+        boolean permiteIfood;
+        if (!restringe) {
+            limiteWhatsapp = plano.getLimiteAtendentesWhatsapp();
+            permiteIfood = true;
+        } else if (modalidade == ModalidadeOperacao.DELIVERY) {
+            limiteWhatsapp = plano.getLimiteAtendentesWhatsappDelivery();
+            permiteIfood = true;
+        } else {
+            // MESAS, ou (não deveria acontecer) restringe sem modalidade
+            // definida ainda — trata como o modo mais restrito, presencial.
+            limiteWhatsapp = plano.getLimiteAtendentesWhatsappMesas();
+            permiteIfood = false;
+        }
+        return new RestricoesOperacaoResponse(restringe, modalidade, plano.getLimiteMesas(), limiteWhatsapp, permiteIfood);
     }
 
     @Transactional

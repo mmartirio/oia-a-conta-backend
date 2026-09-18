@@ -1,5 +1,6 @@
 package com.oiaaconta.billing.entity;
 
+import com.oiaaconta.billing.enums.ModalidadeOperacao;
 import com.oiaaconta.billing.enums.StatusContrato;
 import jakarta.persistence.*;
 import lombok.*;
@@ -43,6 +44,13 @@ public class Contrato {
 
     @Column(name = "mp_preapproval_id", length = 100)
     private String mpPreapprovalId;
+
+    // Só preenchida quando Plano.exigeModalidadeOperacao é true (ex: plano
+    // Startup) — nos demais planos fica null e é ignorada (mesas e delivery
+    // liberados sem restrição).
+    @Enumerated(EnumType.STRING)
+    @Column(name = "modalidade_operacao", length = 20)
+    private ModalidadeOperacao modalidadeOperacao;
 
     @Column(name = "dias_carencia")
     @Builder.Default

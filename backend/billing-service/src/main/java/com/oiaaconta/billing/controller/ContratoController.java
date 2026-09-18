@@ -2,6 +2,7 @@ package com.oiaaconta.billing.controller;
 
 import com.oiaaconta.billing.entity.Contrato;
 import com.oiaaconta.billing.entity.Pagamento;
+import com.oiaaconta.billing.enums.ModalidadeOperacao;
 import com.oiaaconta.billing.enums.StatusContrato;
 import com.oiaaconta.billing.service.BillingService;
 import lombok.RequiredArgsConstructor;
@@ -43,10 +44,24 @@ public class ContratoController {
 
     @PostMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<Contrato> criar(@RequestBody Map<String, Long> body) {
-        Long restauranteId = body.get("restauranteId");
-        Long planoId = body.get("planoId");
-        return ResponseEntity.status(201).body(billingService.criarContrato(restauranteId, planoId));
+    public ResponseEntity<Contrato> criar(@RequestBody Map<String, Object> body) {
+        Long restauranteId = ((Number) body.get("restauranteId")).longValue();
+        Long planoId = ((Number) body.get("planoId")).longValue();
+        ModalidadeOperacao modalidade = body.get("modalidadeOperacao") != null
+            ? ModalidadeOperacao.valueOf(body.get("modalidadeOperacao").toString())
+            : null;
+        return ResponseEntity.status(201).body(billingService.criarContrato(restauranteId, planoId, modalidade));
+    }
+
+    // Troca de modalidade pedida pelo dono via suporte — só o SUPER_ADMIN
+    // (equipe de suporte) pode fazer essa alteração, o dono não tem esse
+    // controle direto no painel.
+    @PutMapping("/{id}/modalidade")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Contrato> atualizarModalidade(@PathVariable Long id,
+                                                         @RequestBody Map<String, String> body) {
+        ModalidadeOperacao modalidade = ModalidadeOperacao.valueOf(body.get("modalidadeOperacao"));
+        return ResponseEntity.ok(billingService.atualizarModalidadeOperacao(id, modalidade));
     }
 
     @PutMapping("/{id}/status")

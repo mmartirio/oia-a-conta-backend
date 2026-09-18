@@ -53,6 +53,28 @@ public class Plano {
     @Builder.Default
     private boolean destaque = false;
 
+    // Só planos como o Startup exigem que o restaurante escolha uma
+    // modalidade de operação (mesas ou delivery) no cadastro — os demais
+    // planos liberam ambas sem restrição. Ver Contrato.modalidadeOperacao.
+    @Column(name = "exige_modalidade_operacao", nullable = false)
+    @Builder.Default
+    private boolean exigeModalidadeOperacao = false;
+
+    // Limite de atendentes de WhatsApp (usuários com permissão de
+    // conversas/mensagens) — qual dos três vale depende da modalidade do
+    // contrato: se o plano não exige modalidade, vale limiteAtendentesWhatsapp;
+    // se exige, vale a versão Mesas ou Delivery conforme a escolha do
+    // restaurante. Null em qualquer um = sem limite. Ver
+    // BillingService.buscarRestricoesOperacao, que resolve isso num valor só.
+    @Column(name = "limite_atendentes_whatsapp")
+    private Integer limiteAtendentesWhatsapp;
+
+    @Column(name = "limite_atendentes_whatsapp_mesas")
+    private Integer limiteAtendentesWhatsappMesas;
+
+    @Column(name = "limite_atendentes_whatsapp_delivery")
+    private Integer limiteAtendentesWhatsappDelivery;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

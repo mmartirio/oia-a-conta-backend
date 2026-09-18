@@ -25,4 +25,8 @@ public class RegistroRequest {
     private String cnpj;
     private String telefone;
     private Long planoId;
+
+    // Só relevante quando o plano escolhido exige modalidade de operação
+    // (ex: plano Startup) — validado no billing-service ao criar o contrato.
+    private String modalidadeOperacao;
 }

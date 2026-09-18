@@ -33,6 +33,7 @@ public class UsuarioService {
     private final EmailService emailService;
     private final AuditoriaService auditoriaService;
     private final AuditoriaClient billingClient;
+    private final AtendenteWhatsappService atendenteWhatsappService;
 
     public List<UsuarioResponse> listarPorRestaurante(@NonNull Long restauranteId) {
         return usuarioRepository.findByRestauranteIdAndAtivoTrue(restauranteId)
@@ -134,9 +135,15 @@ public class UsuarioService {
         Restaurante restaurante = restauranteRepository.findById(restauranteId)
             .orElseThrow(() -> new ResourceNotFoundException("Restaurante não encontrado"));
 
+        Grupo grupo = buscarGrupo(restauranteId, request.getGrupoId());
+        if (grupo != null && atendenteWhatsappService.temPermissaoAtendimento(grupo.getPermissoes())) {
+            long atendentesAtuais = atendenteWhatsappService.contarAtendentesAtivos(restauranteId);
+            atendenteWhatsappService.validarNovoTotal(restauranteId, atendentesAtuais + 1);
+        }
+
         Usuario usuario = usuarioRepository.save(Usuario.builder()
             .restaurante(restaurante)
-            .grupo(buscarGrupo(restauranteId, request.getGrupoId()))
+            .grupo(grupo)
             .nome(request.getNome())
             .email(request.getEmail())
             .senha(passwordEncoder.encode(
@@ -189,7 +196,16 @@ public class UsuarioService {
                 throw new BusinessException("O dono do estabelecimento não pode ser removido do grupo Administrador");
             }
         } else {
-            usuario.setGrupo(buscarGrupo(restauranteId, request.getGrupoId()));
+            Grupo grupoNovo = buscarGrupo(restauranteId, request.getGrupoId());
+            boolean tinhaAtendimento = usuario.getGrupo() != null
+                && atendenteWhatsappService.temPermissaoAtendimento(usuario.getGrupo().getPermissoes());
+            boolean teraAtendimento = grupoNovo != null
+                && atendenteWhatsappService.temPermissaoAtendimento(grupoNovo.getPermissoes());
+            if (teraAtendimento && !tinhaAtendimento) {
+                long atendentesAtuais = atendenteWhatsappService.contarAtendentesAtivos(restauranteId);
+                atendenteWhatsappService.validarNovoTotal(restauranteId, atendentesAtuais + 1);
+            }
+            usuario.setGrupo(grupoNovo);
         }
 
         return toResponse(usuarioRepository.save(usuario));

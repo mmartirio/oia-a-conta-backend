@@ -36,6 +36,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -111,6 +112,7 @@ public class AuthService {
             .cnpj(request.getCnpj())
             .telefone(request.getTelefone())
             .planoId(request.getPlanoId())
+            .modalidadeOperacao(request.getModalidadeOperacao())
             .expiradoEm(LocalDateTime.now().plusHours(1))
             .build();
         registroPendenteRepository.save(pendente);
@@ -238,7 +240,7 @@ public class AuthService {
 
         emailService.enviarBoasVindas(request.getEmail(), request.getNomeAdmin(), restaurante.getNome());
         criarInstanciaWhatsapp(restaurante);
-        criarContratoBilling(restaurante.getId(), request.getPlanoId());
+        criarContratoBilling(restaurante.getId(), request.getPlanoId(), request.getModalidadeOperacao());
         criarCategoriasPadraoCatalogo(restaurante.getId());
         return buildAuthResponse(admin);
     }
@@ -339,7 +341,7 @@ public class AuthService {
         );
         emailService.enviarBoasVindas(pendente.getEmail(), pendente.getNomeAdmin(), restaurante.getNome());
         criarInstanciaWhatsapp(restaurante);
-        criarContratoBilling(restaurante.getId(), pendente.getPlanoId());
+        criarContratoBilling(restaurante.getId(), pendente.getPlanoId(), pendente.getModalidadeOperacao());
         criarCategoriasPadraoCatalogo(restaurante.getId());
         return buildAuthResponse(admin);
     }
@@ -368,12 +370,16 @@ public class AuthService {
         }
     }
 
-    private void criarContratoBilling(Long restauranteId, Long planoId) {
+    private void criarContratoBilling(Long restauranteId, Long planoId, String modalidadeOperacao) {
         if (planoId == null) return;
         try {
+            Map<String, Object> body = new HashMap<>();
+            body.put("restauranteId", restauranteId);
+            body.put("planoId", planoId);
+            body.put("modalidadeOperacao", modalidadeOperacao);
             restTemplate.postForObject(
                 "http://billing-service/internal/contratos",
-                Map.of("restauranteId", restauranteId, "planoId", planoId),
+                body,
                 Object.class
             );
         } catch (Exception e) {

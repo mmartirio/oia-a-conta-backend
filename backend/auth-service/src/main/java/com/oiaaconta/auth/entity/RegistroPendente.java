@@ -39,6 +39,9 @@ public class RegistroPendente {
     @Column(name = "plano_id")
     private Long planoId;
 
+    @Column(name = "modalidade_operacao", length = 20)
+    private String modalidadeOperacao;
+
     @Column(nullable = false)
     private LocalDateTime expiradoEm;
 

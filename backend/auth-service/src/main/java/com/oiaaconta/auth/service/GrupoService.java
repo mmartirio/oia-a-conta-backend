@@ -23,6 +23,7 @@ public class GrupoService {
 
     private final GrupoRepository grupoRepository;
     private final UsuarioRepository usuarioRepository;
+    private final AtendenteWhatsappService atendenteWhatsappService;
 
     public List<GrupoResponse> listar(@NonNull Long restauranteId) {
         return grupoRepository.findByRestauranteIdOrderByNomeAsc(restauranteId)
@@ -31,10 +32,14 @@ public class GrupoService {
 
     @Transactional
     public GrupoResponse criar(@NonNull Long restauranteId, GrupoRequest request) {
+        Set<String> permissoes = normalizar(request.getPermissoes());
+        // Grupo novo, então nenhum usuário está nele ainda — só precisa
+        // validar se der pra atribuir alguém depois (a checagem de verdade
+        // acontece quando um Usuario é atribuído a este grupo).
         Grupo grupo = grupoRepository.save(Grupo.builder()
             .restauranteId(restauranteId)
             .nome(request.getNome().trim())
-            .permissoes(normalizar(request.getPermissoes()))
+            .permissoes(permissoes)
             .build());
         return toResponse(grupo);
     }
@@ -42,8 +47,22 @@ public class GrupoService {
     @Transactional
     public GrupoResponse atualizar(@NonNull Long restauranteId, @NonNull Long id, GrupoRequest request) {
         Grupo grupo = find(restauranteId, id);
+        Set<String> novasPermissoes = normalizar(request.getPermissoes());
+
+        // Se o grupo está GANHANDO permissão de atendimento WhatsApp, todo
+        // mundo que já está nele passa a contar como atendente de uma vez —
+        // valida antes de salvar, não depois.
+        boolean ganhouAtendimento = atendenteWhatsappService.temPermissaoAtendimento(novasPermissoes)
+            && !atendenteWhatsappService.temPermissaoAtendimento(grupo.getPermissoes());
+        if (ganhouAtendimento) {
+            long usuariosAtivosDoGrupo = usuarioRepository.findByGrupoId(grupo.getId())
+                .stream().filter(Usuario::isAtivo).count();
+            long atendentesAtuais = atendenteWhatsappService.contarAtendentesAtivos(restauranteId);
+            atendenteWhatsappService.validarNovoTotal(restauranteId, atendentesAtuais + usuariosAtivosDoGrupo);
+        }
+
         grupo.setNome(request.getNome().trim());
-        grupo.setPermissoes(normalizar(request.getPermissoes()));
+        grupo.setPermissoes(novasPermissoes);
         return toResponse(grupoRepository.save(grupo));
     }
 
