@@ -26,7 +26,9 @@ public class ContratoPdfService {
 
     private record Clausula(String titulo, String corpo) {}
 
-    public byte[] gerarContratoAdesao(String planoNome, BigDecimal planoPreco, String versaoContrato,
+    public byte[] gerarContratoAdesao(String nomeContratante, String nomeRestaurante, String email,
+                                       String cnpj, String telefone,
+                                       String planoNome, BigDecimal planoPreco, String versaoContrato,
                                        LocalDateTime aceitoEm, Long contratoId) {
         Document document = new Document(PageSize.A4, 56, 56, 56, 56);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -38,6 +40,7 @@ public class ContratoPdfService {
             Font metaFont = FontFactory.getFont(FontFactory.HELVETICA, ENC, 9, Font.ITALIC, Color.GRAY);
             Font secaoFont = FontFactory.getFont(FontFactory.HELVETICA, ENC, 11, Font.BOLD, new Color(0xCF, 0x46, 0x22));
             Font corpoFont = FontFactory.getFont(FontFactory.HELVETICA, ENC, 9.5f);
+            Font rotuloFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, ENC, 9.5f);
 
             Paragraph titulo = new Paragraph("Contrato de Adesão aos Serviços da Plataforma Oia a Conta", tituloFont);
             titulo.setSpacingAfter(4);
@@ -48,6 +51,26 @@ public class ContratoPdfService {
                 " · Contratação #" + contratoId, metaFont);
             meta.setSpacingAfter(16);
             document.add(meta);
+
+            // Identificação do CONTRATANTE — sem isso o PDF não comprova de
+            // quem é a contratação, só qual plano/versão foi aceito.
+            Paragraph dadosTitulo = new Paragraph("Dados do Contratante", secaoFont);
+            dadosTitulo.setSpacingAfter(4);
+            document.add(dadosTitulo);
+
+            document.add(linhaDado("Responsável:", nomeContratante, rotuloFont, corpoFont));
+            document.add(linhaDado("Empresa/Restaurante:", nomeRestaurante, rotuloFont, corpoFont));
+            document.add(linhaDado("E-mail:", email, rotuloFont, corpoFont));
+            if (cnpj != null && !cnpj.isBlank()) {
+                document.add(linhaDado("CNPJ:", cnpj, rotuloFont, corpoFont));
+            }
+            if (telefone != null && !telefone.isBlank()) {
+                document.add(linhaDado("Telefone:", telefone, rotuloFont, corpoFont));
+            }
+
+            Paragraph espaco = new Paragraph(" ", corpoFont);
+            espaco.setSpacingAfter(6);
+            document.add(espaco);
 
             String precoFormatado = "R$ " + String.format("%,.2f", planoPreco).replace(",", "X").replace(".", ",").replace("X", ".");
 
@@ -67,6 +90,14 @@ public class ContratoPdfService {
             document.close();
             throw new RuntimeException("Falha ao gerar PDF do contrato", e);
         }
+    }
+
+    private Paragraph linhaDado(String rotulo, String valor, Font rotuloFont, Font valorFont) {
+        Paragraph p = new Paragraph();
+        p.add(new Chunk(rotulo + " ", rotuloFont));
+        p.add(new Chunk(valor == null || valor.isBlank() ? "—" : valor, valorFont));
+        p.setSpacingAfter(2);
+        return p;
     }
 
     private List<Clausula> clausulas(String planoNome, String precoFormatado) {

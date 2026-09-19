@@ -248,6 +248,7 @@ public class AuthService {
         // de contrato do registro-iniciar — sem dados de plano/aceite pra
         // anexar o PDF do contrato.
         emailService.enviarBoasVindas(request.getEmail(), request.getNomeAdmin(), restaurante.getNome(),
+            request.getCnpj(), request.getTelefone(),
             null, null, null, null, null);
         criarInstanciaWhatsapp(restaurante);
         criarContratoBilling(restaurante.getId(), request.getPlanoId(), request.getModalidadeOperacao());
@@ -384,6 +385,7 @@ public class AuthService {
             }
         }
         emailService.enviarBoasVindas(pendente.getEmail(), pendente.getNomeAdmin(), restaurante.getNome(),
+            pendente.getCnpj(), pendente.getTelefone(),
             planoNome, planoPreco, pendente.getVersaoContratoAceito(), pendente.getAceitoEm(), contratoId);
 
         return buildAuthResponse(admin);

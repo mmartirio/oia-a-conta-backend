@@ -79,6 +79,7 @@ public class EmailService {
     // aceitável frente a bloquear todo o cadastro por causa disso.
     @Async
     public void enviarBoasVindas(String destinatario, String nomeDestinatario, String nomeRestaurante,
+                                  String cnpj, String telefone,
                                   String planoNome, BigDecimal planoPreco, String versaoContrato,
                                   LocalDateTime aceitoEm, Long contratoId) {
         String precoFormatado = planoPreco == null ? "—" :
@@ -130,7 +131,8 @@ public class EmailService {
         byte[] pdf = null;
         if (planoNome != null && planoPreco != null && versaoContrato != null && aceitoEm != null && contratoId != null) {
             try {
-                pdf = contratoPdfService.gerarContratoAdesao(planoNome, planoPreco, versaoContrato, aceitoEm, contratoId);
+                pdf = contratoPdfService.gerarContratoAdesao(nomeDestinatario, nomeRestaurante, destinatario, cnpj, telefone,
+                    planoNome, planoPreco, versaoContrato, aceitoEm, contratoId);
             } catch (Exception e) {
                 log.warn("Falha ao gerar PDF do contrato para {}: {}", destinatario, e.getMessage());
             }
