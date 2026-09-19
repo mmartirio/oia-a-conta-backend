@@ -9,6 +9,7 @@ import com.oiaaconta.auth.entity.Usuario;
 import com.oiaaconta.auth.exception.ResourceNotFoundException;
 import com.oiaaconta.auth.repository.UsuarioRepository;
 import com.oiaaconta.auth.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -39,8 +40,20 @@ public class AuthController {
 
     /** Passo 1: iniciar registro com envio de código */
     @PostMapping("/registro-iniciar")
-    public ResponseEntity<Map<String, String>> registroIniciar(@Valid @RequestBody RegistroRequest request) {
-        return ResponseEntity.status(202).body(authService.registroIniciar(request));
+    public ResponseEntity<Map<String, String>> registroIniciar(@Valid @RequestBody RegistroRequest request,
+                                                                 HttpServletRequest httpRequest) {
+        return ResponseEntity.status(202).body(authService.registroIniciar(request, ipDoCliente(httpRequest)));
+    }
+
+    // Prioriza X-Forwarded-For (a requisição passa pelo api-gateway antes de
+    // chegar aqui, então request.getRemoteAddr() seria o IP do gateway, não
+    // do cliente) — cai pro IP direto da conexão se o header não vier.
+    private String ipDoCliente(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 
     /** Passo 2: verificar código e criar conta */

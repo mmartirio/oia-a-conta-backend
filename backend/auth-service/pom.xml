@@ -97,6 +97,14 @@
             <artifactId>google-api-client</artifactId>
             <version>2.7.2</version>
         </dependency>
+        <!-- Geração do PDF do Contrato de Adesão anexado no e-mail de boas-vindas
+             (ver ContratoPdfService). Fork ativamente mantido do iText 4, com
+             licença permissiva (LGPL/MPL) pra uso comercial. -->
+        <dependency>
+            <groupId>com.github.librepdf</groupId>
+            <artifactId>openpdf</artifactId>
+            <version>1.3.30</version>
+        </dependency>
     </dependencies>
 
     <dependencyManagement>

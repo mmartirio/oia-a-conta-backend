@@ -6,6 +6,7 @@ import com.oiaaconta.auth.dto.request.LoginRequest;
 import com.oiaaconta.auth.dto.request.RegistroRequest;
 import com.oiaaconta.auth.client.AuditoriaClient;
 import com.oiaaconta.auth.dto.response.AuthResponse;
+import com.oiaaconta.auth.entity.AceiteContrato;
 import com.oiaaconta.auth.entity.EmailVerificacao;
 import com.oiaaconta.auth.entity.Grupo;
 import com.oiaaconta.auth.entity.RegistroPendente;
@@ -14,6 +15,7 @@ import com.oiaaconta.auth.entity.Usuario;
 import com.oiaaconta.auth.enums.Role;
 import com.oiaaconta.auth.exception.BusinessException;
 import com.oiaaconta.auth.exception.ResourceNotFoundException;
+import com.oiaaconta.auth.repository.AceiteContratoRepository;
 import com.oiaaconta.auth.repository.EmailVerificacaoRepository;
 import com.oiaaconta.auth.repository.RegistroPendenteRepository;
 import com.oiaaconta.auth.repository.RestauranteRepository;
@@ -48,6 +50,7 @@ public class AuthService {
     private final RestauranteRepository restauranteRepository;
     private final EmailVerificacaoRepository emailVerificacaoRepository;
     private final RegistroPendenteRepository registroPendenteRepository;
+    private final AceiteContratoRepository aceiteContratoRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
@@ -94,7 +97,7 @@ public class AuthService {
     // ─── Registro 2 etapas ───────────────────────────────────────────────────
 
     @Transactional
-    public Map<String, String> registroIniciar(RegistroRequest request) {
+    public Map<String, String> registroIniciar(RegistroRequest request, String ipCliente) {
         if (usuarioRepository.existsByEmail(request.getEmail())) {
             throw new BusinessException("E-mail já cadastrado");
         }
@@ -114,6 +117,9 @@ public class AuthService {
             .planoId(request.getPlanoId())
             .modalidadeOperacao(request.getModalidadeOperacao())
             .expiradoEm(LocalDateTime.now().plusHours(1))
+            .versaoContratoAceito(request.getVersaoContrato())
+            .aceitoEm(LocalDateTime.now())
+            .ipAceite(ipCliente)
             .build();
         registroPendenteRepository.save(pendente);
 
@@ -238,7 +244,11 @@ public class AuthService {
                 .build()
         );
 
-        emailService.enviarBoasVindas(request.getEmail(), request.getNomeAdmin(), restaurante.getNome());
+        // Endpoint legado de registro em etapa única, sem o fluxo de aceite
+        // de contrato do registro-iniciar — sem dados de plano/aceite pra
+        // anexar o PDF do contrato.
+        emailService.enviarBoasVindas(request.getEmail(), request.getNomeAdmin(), restaurante.getNome(),
+            null, null, null, null, null);
         criarInstanciaWhatsapp(restaurante);
         criarContratoBilling(restaurante.getId(), request.getPlanoId(), request.getModalidadeOperacao());
         criarCategoriasPadraoCatalogo(restaurante.getId());
@@ -339,10 +349,43 @@ public class AuthService {
                 .emailVerificado(true)
                 .build()
         );
-        emailService.enviarBoasVindas(pendente.getEmail(), pendente.getNomeAdmin(), restaurante.getNome());
         criarInstanciaWhatsapp(restaurante);
-        criarContratoBilling(restaurante.getId(), pendente.getPlanoId(), pendente.getModalidadeOperacao());
+        Map<String, Object> contratoCriado = criarContratoBilling(
+            restaurante.getId(), pendente.getPlanoId(), pendente.getModalidadeOperacao());
         criarCategoriasPadraoCatalogo(restaurante.getId());
+
+        // Registro permanente do aceite — o registro_pendente (de onde vêm
+        // esses dados) é apagado logo depois que este método retorna.
+        if (pendente.getVersaoContratoAceito() != null) {
+            aceiteContratoRepository.save(AceiteContrato.builder()
+                .usuarioId(admin.getId())
+                .restauranteId(restaurante.getId())
+                .versaoContrato(pendente.getVersaoContratoAceito())
+                .aceitoEm(pendente.getAceitoEm())
+                .ipAceite(pendente.getIpAceite())
+                .build());
+        }
+
+        // Dados reais do plano/preço/id vêm do Contrato criado acima no
+        // billing-service (não de pendente, que só tem o planoId) — é o que
+        // vai impresso no e-mail e no PDF anexado.
+        String planoNome = null;
+        java.math.BigDecimal planoPreco = null;
+        Long contratoId = null;
+        if (contratoCriado != null) {
+            Object idObj = contratoCriado.get("id");
+            contratoId = idObj != null ? ((Number) idObj).longValue() : null;
+            Object planoObj = contratoCriado.get("plano");
+            if (planoObj instanceof Map<?, ?> planoMap) {
+                Object nomeObj = planoMap.get("nome");
+                planoNome = nomeObj != null ? nomeObj.toString() : null;
+                Object precoObj = planoMap.get("precoMensal");
+                if (precoObj != null) planoPreco = new java.math.BigDecimal(precoObj.toString());
+            }
+        }
+        emailService.enviarBoasVindas(pendente.getEmail(), pendente.getNomeAdmin(), restaurante.getNome(),
+            planoNome, planoPreco, pendente.getVersaoContratoAceito(), pendente.getAceitoEm(), contratoId);
+
         return buildAuthResponse(admin);
     }
 
@@ -370,20 +413,26 @@ public class AuthService {
         }
     }
 
-    private void criarContratoBilling(Long restauranteId, Long planoId, String modalidadeOperacao) {
-        if (planoId == null) return;
+    // Retorna o Contrato criado (com o Plano aninhado) pra quem precisar dos
+    // dados reais de plano/preço — ex: e-mail de boas-vindas com o PDF do
+    // contrato (ver criarContaFromPendente). null se o billing-service não
+    // respondeu, ou se planoId é nulo (contrato sem plano associado).
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> criarContratoBilling(Long restauranteId, Long planoId, String modalidadeOperacao) {
+        if (planoId == null) return null;
         try {
             Map<String, Object> body = new HashMap<>();
             body.put("restauranteId", restauranteId);
             body.put("planoId", planoId);
             body.put("modalidadeOperacao", modalidadeOperacao);
-            restTemplate.postForObject(
+            return restTemplate.postForObject(
                 "http://billing-service/internal/contratos",
                 body,
-                Object.class
+                Map.class
             );
         } catch (Exception e) {
             log.warn("Não foi possível criar contrato no billing-service: {}", e.getMessage());
+            return null;
         }
     }
 

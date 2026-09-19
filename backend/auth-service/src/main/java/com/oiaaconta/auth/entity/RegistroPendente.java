@@ -45,6 +45,19 @@ public class RegistroPendente {
     @Column(nullable = false)
     private LocalDateTime expiradoEm;
 
+    // Aceite do Contrato de Adesão/Termos de Uso/Política de Privacidade,
+    // capturado no momento do registro-iniciar (quando o usuário de fato
+    // clicou aceitar) — copiado pra um AceiteContrato permanente quando a
+    // conta é criada (ver AuthService.criarContaFromPendente).
+    @Column(name = "versao_contrato_aceito", length = 20)
+    private String versaoContratoAceito;
+
+    @Column(name = "aceito_em")
+    private LocalDateTime aceitoEm;
+
+    @Column(name = "ip_aceite", length = 45)
+    private String ipAceite;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

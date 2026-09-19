@@ -4,6 +4,7 @@ import com.oiaaconta.billing.entity.Contrato;
 import com.oiaaconta.billing.entity.Pagamento;
 import com.oiaaconta.billing.enums.ModalidadeOperacao;
 import com.oiaaconta.billing.enums.StatusContrato;
+import com.oiaaconta.billing.exception.LimiteTrocasModalidadeExcedidoException;
 import com.oiaaconta.billing.service.BillingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -64,6 +65,28 @@ public class ContratoController {
         return ResponseEntity.ok(billingService.atualizarModalidadeOperacao(id, modalidade));
     }
 
+    // Troca de modalidade feita pelo próprio dono, direto no painel — só
+    // enquanto ainda tiver trocas gratuitas (ver BillingService.alterarMinhaModalidade).
+    @PutMapping("/meu/modalidade")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<Contrato> alterarMinhaModalidade(@RequestHeader("X-Restaurante-Id") Long restauranteId,
+                                                            @RequestBody Map<String, String> body) {
+        ModalidadeOperacao modalidade = ModalidadeOperacao.valueOf(body.get("modalidadeOperacao"));
+        return ResponseEntity.ok(billingService.alterarMinhaModalidade(restauranteId, modalidade));
+    }
+
+    // Troca de plano feita pelo próprio dono, direto no painel.
+    @PutMapping("/meu/plano")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<Contrato> alterarMeuPlano(@RequestHeader("X-Restaurante-Id") Long restauranteId,
+                                                     @RequestBody Map<String, Object> body) {
+        Long planoId = ((Number) body.get("planoId")).longValue();
+        ModalidadeOperacao modalidade = body.get("modalidadeOperacao") != null
+            ? ModalidadeOperacao.valueOf(body.get("modalidadeOperacao").toString())
+            : null;
+        return ResponseEntity.ok(billingService.alterarMeuPlano(restauranteId, planoId, modalidade));
+    }
+
     @PutMapping("/{id}/status")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<Contrato> atualizarStatus(@PathVariable Long id,
@@ -93,5 +116,13 @@ public class ContratoController {
     @ExceptionHandler(NoSuchElementException.class)
     public ResponseEntity<Void> handleNaoEncontrado() {
         return ResponseEntity.notFound().build();
+    }
+
+    // Dono tentou trocar modalidade sozinho depois de esgotar as trocas
+    // gratuitas — devolve a mensagem explicando o valor/como proceder pro
+    // frontend exibir direto pro usuário.
+    @ExceptionHandler(LimiteTrocasModalidadeExcedidoException.class)
+    public ResponseEntity<Map<String, String>> handleLimiteTrocasExcedido(LimiteTrocasModalidadeExcedidoException ex) {
+        return ResponseEntity.status(403).body(Map.of("mensagem", ex.getMessage()));
     }
 }
