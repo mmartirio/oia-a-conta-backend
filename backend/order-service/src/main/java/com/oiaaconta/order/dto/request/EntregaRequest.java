@@ -47,6 +47,10 @@ public class EntregaRequest {
 
     private boolean origemIfood;
 
+    // Cliente vai pagar online no cardápio (PIX ou cartão de crédito via
+    // Mercado Pago) — só aceito com origemWhatsapp e restaurante conectado.
+    private boolean pagamentoOnline;
+
     // ID do pedido no iFood — obrigatório sse origemIfood, validado em EntregaService.
     private String ifoodOrderId;
 

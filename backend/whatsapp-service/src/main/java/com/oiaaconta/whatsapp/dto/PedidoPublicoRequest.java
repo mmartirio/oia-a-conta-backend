@@ -11,6 +11,8 @@ public class PedidoPublicoRequest {
     private String telefone;
     private String endereco;
     private String metodoPagamento;
+    // PIX/cartão pagos online no próprio cardápio (Mercado Pago do restaurante).
+    private boolean pagamentoOnline;
     private String observacao;
     private List<ItemDto> itens;
 

@@ -95,6 +95,23 @@ public class Entrega {
     @Column(name = "pagamento_pix_validado", nullable = false)
     private Boolean pagamentoPixValidado = false;
 
+    // Pagamento online (Mercado Pago, conta do próprio restaurante) feito
+    // pelo cliente no cardápio — ver PagamentoOnlineService.
+    @Builder.Default
+    @Column(name = "pagamento_online", nullable = false)
+    private Boolean pagamentoOnline = false;
+
+    // Segredo do link de pagamento — o cardápio público não tem login.
+    @Column(name = "pagamento_online_token", length = 64)
+    private String pagamentoOnlineToken;
+
+    @Column(name = "mp_payment_id", length = 50)
+    private String mpPaymentId;
+
+    // Status do pagamento no MP (approved, pending, rejected, refunded...).
+    @Column(name = "pagamento_online_status", length = 30)
+    private String pagamentoOnlineStatus;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

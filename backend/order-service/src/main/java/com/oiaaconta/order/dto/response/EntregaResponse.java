@@ -39,6 +39,11 @@ public class EntregaResponse {
     private Boolean origemPdv;
     private Boolean pagamentoConfirmadoCaixa;
     private Boolean pagamentoPixValidado;
+    private Boolean pagamentoOnline;
+    private String pagamentoOnlineStatus;
+    // Só faz sentido pro cardápio que acabou de criar o pedido (vai na URL
+    // de pagamento) — repassado pelo whatsapp-service.
+    private String pagamentoOnlineToken;
     private LocalDateTime criadoEm;
     private LocalDateTime entregueEm;
 

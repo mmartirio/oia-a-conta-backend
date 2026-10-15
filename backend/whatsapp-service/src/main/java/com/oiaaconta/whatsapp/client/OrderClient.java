@@ -47,6 +47,9 @@ public interface OrderClient {
         private String metodoPagamento;
         private String observacao;
         private boolean origemWhatsapp;
+        // Cliente vai pagar online no cardápio (Mercado Pago) — o pedido só
+        // chega ao restaurante depois do pagamento aprovado.
+        private boolean pagamentoOnline;
         private List<ItemEntregaRequest> itens;
     }
 
@@ -77,5 +80,6 @@ public interface OrderClient {
         private BigDecimal total;
         private BigDecimal valorFrete;
         private String pixChave;
+        private String pagamentoOnlineToken;
     }
 }

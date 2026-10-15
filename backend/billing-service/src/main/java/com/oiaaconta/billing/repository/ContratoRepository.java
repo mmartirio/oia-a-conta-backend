@@ -41,4 +41,6 @@ public interface ContratoRepository extends JpaRepository<Contrato, Long> {
     List<Contrato> findInadimplentes(LocalDate hoje);
 
     List<Contrato> findByStatusOrderByCreatedAtDesc(StatusContrato status);
+
+    Optional<Contrato> findByMpPreapprovalId(String mpPreapprovalId);
 }

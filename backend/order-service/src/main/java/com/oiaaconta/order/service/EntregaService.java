@@ -46,6 +46,8 @@ public class EntregaService {
     private final IfoodClient ifoodClient;
     private final GeocodingService geocodingService;
     private final ComboEscolhaResolver comboEscolhaResolver;
+    private final MercadoPagoContaService mercadoPagoContaService;
+    private final PagamentoOnlineService pagamentoOnlineService;
 
     @Transactional
     public EntregaResponse criar(Long restauranteId, EntregaRequest request) {
@@ -56,9 +58,21 @@ public class EntregaService {
         // (99/Uber Entrega etc.) — mesma trava do frontend (CardapioPublico),
         // repetida aqui pro checkout público (sem auth) não poder ser
         // contornado enviando CARTAO_CREDITO direto pela API.
-        if (request.isOrigemWhatsapp() && request.getMetodoPagamento() == MetodoPagamento.CARTAO_CREDITO
+        if (request.isOrigemWhatsapp() && !request.isPagamentoOnline()
+                && request.getMetodoPagamento() == MetodoPagamento.CARTAO_CREDITO
                 && configuracaoService.get(restauranteId).isEntregadorExterno()) {
             throw new BusinessException("Cartão de crédito não disponível — este restaurante usa entregador externo.");
+        }
+        if (request.isPagamentoOnline()) {
+            if (!request.isOrigemWhatsapp()) {
+                throw new BusinessException("Pagamento online só vale para pedidos do cardápio digital.");
+            }
+            if (request.getMetodoPagamento() != MetodoPagamento.PIX && request.getMetodoPagamento() != MetodoPagamento.CARTAO_CREDITO) {
+                throw new BusinessException("Pagamento online aceita só PIX ou cartão de crédito.");
+            }
+            if (mercadoPagoContaService.contaConectada(restauranteId).isEmpty()) {
+                throw new BusinessException("Este restaurante não aceita pagamento online no momento.");
+            }
         }
         if (request.isOrigemIfood()) {
             if (request.getIfoodOrderId() == null || request.getIfoodOrderId().isBlank()) {
@@ -116,6 +130,20 @@ public class EntregaService {
         if (!request.isOrigemWhatsapp() && !request.isOrigemIfood()) {
             entrega.setStatus(StatusEntrega.ACEITA);
         }
+        // Pago online: fica fora do fluxo (sem aviso ao restaurante, sem
+        // cozinha) até o Mercado Pago aprovar — ver PagamentoOnlineService.
+        if (request.isPagamentoOnline()) {
+            entrega.setPagamentoOnline(true);
+            entrega.setPagamentoOnlineToken(java.util.UUID.randomUUID().toString().replace("-", "")
+                + java.util.UUID.randomUUID().toString().replace("-", ""));
+            entrega.setStatus(StatusEntrega.AGUARDANDO_PAGAMENTO);
+        }
+        // O cardápio manda o preço junto com cada item; no pedido pago online
+        // esse valor vira cobrança no cartão/PIX, então vale o preço do
+        // catálogo, não o que chegou na requisição. (Combo já usa o preço do
+        // catálogo em expandirCombo.)
+        java.util.Map<Long, BigDecimal> precosCatalogo = request.isPagamentoOnline()
+            ? precosDoCardapio(restauranteId) : java.util.Map.of();
 
         // ArrayList mutável, não .toList() (imutável) — "entrega" é salva de
         // novo mais abaixo (pra gravar pedidoCozinhaId) dentro da mesma
@@ -127,6 +155,13 @@ public class EntregaService {
             if (item.getComboId() != null) {
                 itens.addAll(expandirCombo(entrega, item, restauranteId));
             } else if (item.getProdutoId() != null) {
+                BigDecimal precoUnitario = item.getPrecoUnitario();
+                if (request.isPagamentoOnline()) {
+                    precoUnitario = precosCatalogo.get(item.getProdutoId());
+                    if (precoUnitario == null) {
+                        throw new BusinessException("'" + item.getProdutoNome() + "' não está mais disponível no cardápio.");
+                    }
+                }
                 itens.add(ItemEntrega.builder()
                     .entrega(entrega)
                     .produtoId(item.getProdutoId())
@@ -134,7 +169,7 @@ public class EntregaService {
                     .quantidade(item.getQuantidade())
                     .pesoGramas(item.getPesoGramas())
                     .volumeMililitros(item.getVolumeMililitros())
-                    .precoUnitario(item.getPrecoUnitario())
+                    .precoUnitario(precoUnitario)
                     .observacao(item.getObservacao())
                     .build());
             } else {
@@ -152,7 +187,9 @@ public class EntregaService {
 
         Entrega saved = entregaRepository.save(entrega);
 
-        if (request.isOrigemWhatsapp() || request.isOrigemIfood()) {
+        if (request.isPagamentoOnline()) {
+            // Nada a fazer agora — o restaurante é avisado quando o pagamento for aprovado.
+        } else if (request.isOrigemWhatsapp() || request.isOrigemIfood()) {
             try {
                 notificationClient.novaEntregaAguardando(NotificacaoMessage.builder()
                     .tipo("NOVA_ENTREGA_AGUARDANDO")
@@ -180,10 +217,31 @@ public class EntregaService {
         // assíncrona por entregaId (nesse momento o whatsapp-service ainda
         // não persistiu o entregaId na sessão, então essa notificação
         // silenciosamente não acharia pra quem mandar).
-        if (request.isOrigemWhatsapp() && request.getMetodoPagamento() == MetodoPagamento.PIX) {
+        if (request.isPagamentoOnline()) {
+            resp.setPagamentoOnlineToken(saved.getPagamentoOnlineToken());
+        } else if (request.isOrigemWhatsapp() && request.getMetodoPagamento() == MetodoPagamento.PIX) {
             resp.setPixChave(configuracaoService.get(restauranteId).getPixChave());
         }
         return resp;
+    }
+
+    private java.util.Map<Long, BigDecimal> precosDoCardapio(Long restauranteId) {
+        com.oiaaconta.order.dto.catalog.CardapioPublicoDto cardapio;
+        try {
+            cardapio = catalogClient.buscarCardapioPublico(restauranteId);
+        } catch (Exception e) {
+            throw new BusinessException("Não foi possível conferir o cardápio agora. Tente novamente.");
+        }
+        java.util.Map<Long, BigDecimal> precos = new java.util.HashMap<>();
+        if (cardapio != null && cardapio.getCategorias() != null) {
+            for (var categoria : cardapio.getCategorias()) {
+                if (categoria.getProdutos() == null) continue;
+                for (var produto : categoria.getProdutos()) {
+                    if (produto.getId() != null && produto.getPreco() != null) precos.put(produto.getId(), produto.getPreco());
+                }
+            }
+        }
+        return precos;
     }
 
     // Monta a string de endereço pra geocodificação — o checkout do WhatsApp/
@@ -247,7 +305,7 @@ public class EntregaService {
     }
 
     public Page<EntregaResponse> listar(Long restauranteId, Pageable pageable) {
-        return entregaRepository.findByRestauranteIdOrderByCreatedAtDesc(restauranteId, pageable)
+        return entregaRepository.findByRestauranteIdAndStatusNotOrderByCreatedAtDesc(restauranteId, StatusEntrega.AGUARDANDO_PAGAMENTO, pageable)
             .map(this::toResponse);
     }
 
@@ -280,7 +338,8 @@ public class EntregaService {
         // separação, aceitar sozinho já disparava a cozinha sem confirmar
         // que o pagamento realmente caiu.
         boolean pixAguardandoEnvio = Boolean.TRUE.equals(entrega.getOrigemWhatsapp())
-            && entrega.getMetodoPagamento() == MetodoPagamento.PIX;
+            && entrega.getMetodoPagamento() == MetodoPagamento.PIX
+            && !Boolean.TRUE.equals(entrega.getPagamentoPixValidado());
         entrega.setStatus(pixAguardandoEnvio ? StatusEntrega.CONFIRMADA : StatusEntrega.ACEITA);
         Entrega saved = entregaRepository.save(entrega);
 
@@ -316,6 +375,7 @@ public class EntregaService {
         }
         entrega.setStatus(StatusEntrega.CANCELADA);
         entrega.setMotivoRejeicao(motivo.trim());
+        pagamentoOnlineService.reembolsarSePago(entrega);
         Entrega saved = entregaRepository.save(entrega);
 
         if (Boolean.TRUE.equals(entrega.getOrigemWhatsapp())) {
@@ -434,6 +494,7 @@ public class EntregaService {
             throw new BusinessException("Não é possível cancelar uma entrega já concluída");
         }
         entrega.setStatus(StatusEntrega.CANCELADA);
+        pagamentoOnlineService.reembolsarSePago(entrega);
         return toResponse(entregaRepository.save(entrega));
     }
 
@@ -602,6 +663,8 @@ public class EntregaService {
             .origemPdv(Boolean.TRUE.equals(e.getOrigemPdv()))
             .pagamentoConfirmadoCaixa(Boolean.TRUE.equals(e.getPagamentoConfirmadoCaixa()))
             .pagamentoPixValidado(Boolean.TRUE.equals(e.getPagamentoPixValidado()))
+            .pagamentoOnline(Boolean.TRUE.equals(e.getPagamentoOnline()))
+            .pagamentoOnlineStatus(e.getPagamentoOnlineStatus())
             .criadoEm(e.getCreatedAt()).entregueEm(e.getEntregueAt())
             .latitude(e.getLatitude()).longitude(e.getLongitude())
             .localizacaoAtualizadaEm(e.getLocalizacaoAtualizadaEm())

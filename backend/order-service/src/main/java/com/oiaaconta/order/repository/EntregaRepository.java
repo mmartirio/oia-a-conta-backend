@@ -17,6 +17,11 @@ public interface EntregaRepository extends JpaRepository<Entrega, Long> {
     @EntityGraph(attributePaths = "itens")
     Page<Entrega> findByRestauranteIdOrderByCreatedAtDesc(Long restauranteId, Pageable pageable);
 
+    // Listagem geral do painel — sem os pedidos de pagamento online ainda
+    // não pagos (AGUARDANDO_PAGAMENTO), que não existem pro restaurante.
+    @EntityGraph(attributePaths = "itens")
+    Page<Entrega> findByRestauranteIdAndStatusNotOrderByCreatedAtDesc(Long restauranteId, StatusEntrega status, Pageable pageable);
+
     @EntityGraph(attributePaths = "itens")
     Page<Entrega> findByRestauranteIdAndStatusOrderByCreatedAtDesc(Long restauranteId, StatusEntrega status, Pageable pageable);
 
@@ -43,5 +48,7 @@ public interface EntregaRepository extends JpaRepository<Entrega, Long> {
 
     // Evita duplicar a Entrega se o mesmo evento de pedido do iFood for
     // reentregue no polling antes do acknowledgment ser confirmado.
+    List<Entrega> findByStatusAndCreatedAtBefore(StatusEntrega status, java.time.LocalDateTime limite);
+
     Optional<Entrega> findByRestauranteIdAndIfoodOrderId(Long restauranteId, String ifoodOrderId);
 }

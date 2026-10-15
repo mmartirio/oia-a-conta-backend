@@ -1,5 +1,7 @@
 package com.oiaaconta.whatsapp.controller;
 
+import feign.FeignException;
+
 import com.oiaaconta.whatsapp.client.EvolutionApiClient;
 import com.oiaaconta.whatsapp.client.OrderClient;
 import com.oiaaconta.whatsapp.dto.PedidoPublicoRequest;
@@ -105,11 +107,36 @@ public class WhatsappPublicoController {
                 .metodoPagamento(request.getMetodoPagamento())
                 .observacao(request.getObservacao())
                 .origemWhatsapp(true)
+                .pagamentoOnline(request.isPagamentoOnline())
                 .itens(itensRequest)
                 .build());
+        } catch (FeignException e) {
+            // 400 do order-service = regra de negócio (produto saiu do
+            // cardápio, restaurante sem pagamento online...) — repassa a
+            // mensagem em vez do genérico "tente novamente".
+            String msg = e.status() == 400 ? mensagemDeErro(e) : null;
+            log.error("Erro ao criar entrega via cardápio público: {}", e.getMessage());
+            return ResponseEntity.status(msg != null ? 400 : 502)
+                .body(Map.of("erro", msg != null ? msg : "Não foi possível enviar o pedido. Tente novamente."));
         } catch (Exception e) {
             log.error("Erro ao criar entrega via cardápio público: {}", e.getMessage(), e);
             return ResponseEntity.status(502).body(Map.of("erro", "Não foi possível enviar o pedido. Tente novamente."));
+        }
+
+        // Pago online: o pedido ainda não existe pro restaurante (só depois do
+        // pagamento aprovado) — sem mensagem de "recebemos seu pedido" agora;
+        // o cliente é avisado quando o restaurante aceitar (PEDIDO_ACEITO).
+        if (request.isPagamentoOnline()) {
+            sessao.setEntregaId(entrega.getId());
+            sessao.setEstado(EstadoSessao.PEDIDO_ENVIADO);
+            sessaoRepo.save(sessao);
+            return ResponseEntity.ok(Map.of(
+                "mensagem", "Pedido criado — aguardando pagamento",
+                "telefone", telefone,
+                "entregaId", entrega.getId(),
+                "pagamentoOnlineToken", entrega.getPagamentoOnlineToken(),
+                "total", entrega.getTotal()
+            ));
         }
 
         sessao.setEntregaId(entrega.getId());
@@ -168,6 +195,16 @@ public class WhatsappPublicoController {
             mensagemWhatsappService.registrar(restauranteId, telefone, DirecaoMensagem.ENVIADA, sb.toString());
         } catch (Exception e) {
             log.warn("Erro ao enviar mensagem de confirmação do pedido público: {}", e.getMessage());
+        }
+    }
+
+    private String mensagemDeErro(FeignException e) {
+        try {
+            Object msg = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readValue(e.contentUTF8(), Map.class).get("message");
+            return msg != null ? msg.toString() : null;
+        } catch (Exception ex) {
+            return null;
         }
     }
 

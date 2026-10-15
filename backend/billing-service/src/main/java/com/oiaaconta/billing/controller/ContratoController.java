@@ -5,6 +5,8 @@ import com.oiaaconta.billing.entity.Pagamento;
 import com.oiaaconta.billing.enums.ModalidadeOperacao;
 import com.oiaaconta.billing.enums.StatusContrato;
 import com.oiaaconta.billing.exception.LimiteTrocasModalidadeExcedidoException;
+import com.oiaaconta.billing.exception.MercadoPagoException;
+import com.oiaaconta.billing.service.AssinaturaService;
 import com.oiaaconta.billing.service.BillingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -24,6 +26,7 @@ import java.util.NoSuchElementException;
 public class ContratoController {
 
     private final BillingService billingService;
+    private final AssinaturaService assinaturaService;
 
     @GetMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -108,6 +111,38 @@ public class ContratoController {
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     public ResponseEntity<Page<Pagamento>> pagamentos(@PathVariable Long id, @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(billingService.listarPagamentosDoContrato(id, pageable));
+    }
+
+    // Dados pra tela de cadastro do cartão: public key do MP (tokeniza o
+    // cartão no navegador) e quando/quanto vai ser a primeira cobrança.
+    @GetMapping("/meu/assinatura/config")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<Map<String, Object>> configAssinatura(@RequestHeader("X-Restaurante-Id") Long restauranteId) {
+        Contrato contrato = billingService.buscarContratoDoRestaurante(restauranteId);
+        return ResponseEntity.ok(Map.of(
+            "publicKey", assinaturaService.getPublicKey() != null ? assinaturaService.getPublicKey() : "",
+            "valor", contrato.getPlano().getPrecoMensal(),
+            "primeiraCobranca", assinaturaService.dataPrimeiraCobranca(contrato).toString()
+        ));
+    }
+
+    // Cadastra o cartão (já tokenizado no frontend) numa assinatura mensal
+    // no Mercado Pago — ver AssinaturaService.criarAssinatura.
+    @PostMapping("/meu/assinatura")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<Contrato> criarAssinatura(@RequestHeader("X-Restaurante-Id") Long restauranteId,
+                                                    @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(assinaturaService.criarAssinatura(restauranteId, body.get("cardTokenId"), body.get("payerEmail")));
+    }
+
+    @ExceptionHandler(MercadoPagoException.class)
+    public ResponseEntity<Map<String, String>> handleMercadoPago(MercadoPagoException ex) {
+        return ResponseEntity.status(422).body(Map.of("mensagem", ex.getMessage()));
+    }
+
+    @ExceptionHandler({IllegalStateException.class, IllegalArgumentException.class})
+    public ResponseEntity<Map<String, String>> handleRequisicaoInvalida(RuntimeException ex) {
+        return ResponseEntity.badRequest().body(Map.of("mensagem", ex.getMessage() != null ? ex.getMessage() : "Requisição inválida"));
     }
 
     // Restaurante sem contrato (ex: cadastrado fora do fluxo normal de

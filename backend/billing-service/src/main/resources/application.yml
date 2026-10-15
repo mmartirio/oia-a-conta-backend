@@ -36,6 +36,10 @@ jwt:
 mercadopago:
   access-token: ${MP_ACCESS_TOKEN:}
   webhook-secret: ${MP_WEBHOOK_SECRET:}
+  # Par do access-token (mesma conta/aplicação) — vai pro frontend tokenizar
+  # o cartão no cadastro da assinatura.
+  public-key: ${MP_PUBLIC_KEY:}
+  frontend-base-url: ${FRONTEND_BASE_URL:https://oiaaconta.com.br}
 
 auth-service:
   url: ${AUTH_SERVICE_URL:http://auth-service}

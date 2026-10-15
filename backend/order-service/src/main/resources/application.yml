@@ -33,6 +33,16 @@ eureka:
 jwt:
   secret: ${JWT_SECRET:oia_a_conta_super_secret_key_2024_must_be_at_least_32_chars}
 
+# Pagamento online do cardápio — OAuth da aplicação do Oia a Conta no
+# Mercado Pago (cada restaurante conecta a própria conta). Ver
+# MercadoPagoContaService/PagamentoOnlineService.
+mercadopago:
+  client-id: ${MP_CLIENT_ID:}
+  client-secret: ${MP_CLIENT_SECRET:}
+  oauth-redirect-uri: ${MP_OAUTH_REDIRECT_URI:}
+  token-key: ${MP_TOKEN_KEY:}
+  api-public-url: ${API_PUBLIC_URL:}
+
 osrm:
   url: ${OSRM_URL:http://localhost:5000}
 

@@ -26,6 +26,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(a -> a.requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/api/configuracoes/pausas/status").permitAll()
                 .requestMatchers("/internal/**").permitAll()
+                .requestMatchers("/api/pagamento-online/publico/**", "/api/pagamento-online/webhook").permitAll()
                 .anyRequest().authenticated())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .build();

@@ -44,6 +44,13 @@ public interface CatalogClient {
         @PathVariable("restauranteId") Long restauranteId,
         @PathVariable("id") Long id);
 
+    // Cardápio público — usado pra conferir no servidor o preço dos produtos
+    // de pedido pago online (o cardápio manda o preço junto com o item, e o
+    // valor cobrado no Mercado Pago não pode depender do que o cliente mandou).
+    @GetMapping("/catalog/publico/{restauranteId}/cardapio")
+    com.oiaaconta.order.dto.catalog.CardapioPublicoDto buscarCardapioPublico(
+        @PathVariable("restauranteId") Long restauranteId);
+
     // Elegibilidade do cupom (alvo + validade) não depende do valor da compra
     // — só do gasto histórico (usado em promocoesAplicaveis). O valor do
     // desconto em si é calculado localmente em ComandaService a partir do
