@@ -20,6 +20,7 @@ import com.oiaaconta.order.exception.BusinessException;
 import com.oiaaconta.order.exception.ResourceNotFoundException;
 import com.oiaaconta.order.repository.ComandaRepository;
 import com.oiaaconta.order.repository.PedidoRepository;
+import com.oiaaconta.order.util.ItemPrecoUtil;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -73,6 +74,8 @@ public class PedidoService {
                     .produtoId(item.getProdutoId())
                     .produtoNome(item.getProdutoNome() != null ? item.getProdutoNome() : "Produto #" + item.getProdutoId())
                     .quantidade(item.getQuantidade())
+                    .pesoGramas(item.getPesoGramas())
+                    .volumeMililitros(item.getVolumeMililitros())
                     .observacao(item.getObservacao())
                     .precoUnitario(item.getPrecoUnitario() != null ? item.getPrecoUnitario() : BigDecimal.ZERO)
                     .build());
@@ -314,8 +317,10 @@ public class PedidoService {
             .map(i -> ItemPedidoResponse.builder()
                 .id(i.getId()).produtoId(i.getProdutoId())
                 .produtoNome(i.getProdutoNome()).quantidade(i.getQuantidade())
+                .pesoGramas(i.getPesoGramas())
+                .volumeMililitros(i.getVolumeMililitros())
                 .observacao(i.getObservacao()).precoUnitario(i.getPrecoUnitario())
-                .subtotal(i.getPrecoUnitario().multiply(BigDecimal.valueOf(i.getQuantidade())))
+                .subtotal(ItemPrecoUtil.subtotal(i.getPrecoUnitario(), i.getQuantidade(), i.getPesoGramas(), i.getVolumeMililitros()))
                 .comboId(i.getComboId()).comboNome(i.getComboNome())
                 .build())
             .toList();

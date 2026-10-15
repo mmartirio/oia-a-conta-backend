@@ -18,6 +18,7 @@ import com.oiaaconta.order.enums.TipoDescontoOrigem;
 import com.oiaaconta.order.exception.BusinessException;
 import com.oiaaconta.order.exception.ResourceNotFoundException;
 import com.oiaaconta.order.repository.ComandaRepository;
+import com.oiaaconta.order.util.ItemPrecoUtil;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -272,7 +273,7 @@ public class ComandaService {
     private BigDecimal calcularSubtotal(Comanda c) {
         return c.getPedidos().stream()
             .flatMap(p -> p.getItens().stream())
-            .map(i -> i.getPrecoUnitario().multiply(BigDecimal.valueOf(i.getQuantidade())))
+            .map(i -> ItemPrecoUtil.subtotal(i.getPrecoUnitario(), i.getQuantidade(), i.getPesoGramas(), i.getVolumeMililitros()))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
@@ -308,7 +309,9 @@ public class ComandaService {
                 .id(i.getId()).produtoId(i.getProdutoId())
                 .produtoNome(i.getProdutoNome()).quantidade(i.getQuantidade())
                 .observacao(i.getObservacao()).precoUnitario(i.getPrecoUnitario())
-                .subtotal(i.getPrecoUnitario().multiply(BigDecimal.valueOf(i.getQuantidade())))
+                .pesoGramas(i.getPesoGramas())
+                .volumeMililitros(i.getVolumeMililitros())
+                .subtotal(ItemPrecoUtil.subtotal(i.getPrecoUnitario(), i.getQuantidade(), i.getPesoGramas(), i.getVolumeMililitros()))
                 .comboId(i.getComboId()).comboNome(i.getComboNome())
                 .build())
             .toList();

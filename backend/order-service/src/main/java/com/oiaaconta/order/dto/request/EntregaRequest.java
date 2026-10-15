@@ -60,6 +60,17 @@ public class EntregaRequest {
         private Long produtoId;
         private String produtoNome;
         @NotNull @Min(1) private Integer quantidade;
+
+        // Só pra produto vendido por peso (Produto.tipoPreco PESO) — peso
+        // vendido já em gramas; quantidade acima continua 1 nesse caso.
+        @DecimalMin(value = "0.001", message = "Peso deve ser maior que zero")
+        private BigDecimal pesoGramas;
+
+        // Só pra produto vendido por volume (Produto.tipoPreco VOLUME) —
+        // volume vendido já em mililitros; quantidade acima continua 1.
+        @DecimalMin(value = "0.001", message = "Volume deve ser maior que zero")
+        private BigDecimal volumeMililitros;
+
         private BigDecimal precoUnitario;
         private String observacao;
 

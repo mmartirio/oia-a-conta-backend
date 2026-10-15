@@ -49,6 +49,8 @@ public class PdvService {
                 itemRequest.setProdutoId(item.getProdutoId());
                 itemRequest.setProdutoNome(item.getProdutoNome());
                 itemRequest.setQuantidade(item.getQuantidade());
+                itemRequest.setPesoGramas(item.getPesoGramas());
+                itemRequest.setVolumeMililitros(item.getVolumeMililitros());
                 itemRequest.setPrecoUnitario(item.getPrecoUnitario());
                 itemRequest.setObservacao(item.getObservacao());
                 itemRequest.setComboId(item.getComboId());

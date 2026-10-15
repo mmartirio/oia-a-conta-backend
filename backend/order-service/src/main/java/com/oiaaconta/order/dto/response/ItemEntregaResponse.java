@@ -12,6 +12,8 @@ public class ItemEntregaResponse {
     private Long produtoId;
     private String produtoNome;
     private Integer quantidade;
+    private BigDecimal pesoGramas;
+    private BigDecimal volumeMililitros;
     private BigDecimal precoUnitario;
     private String observacao;
     private Long comboId;

@@ -46,6 +46,8 @@ public class DeliveryOrchestrationService {
                 .produtoId(item.getProdutoId())
                 .produtoNome(item.getProdutoNome())
                 .quantidade(item.getQuantidade())
+                .pesoGramas(item.getPesoGramas())
+                .volumeMililitros(item.getVolumeMililitros())
                 .precoUnitario(item.getPrecoUnitario())
                 .observacao(item.getObservacao())
                 .comboId(item.getComboId())

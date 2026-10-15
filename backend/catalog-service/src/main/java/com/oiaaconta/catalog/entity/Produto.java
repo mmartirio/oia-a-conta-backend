@@ -29,8 +29,17 @@ public class Produto {
     @Column(columnDefinition = "TEXT")
     private String descricao;
 
+    // Preço por unidade (tipoPreco=UNIDADE) ou preço por quilo (tipoPreco=PESO)
+    // — mesmo campo nos dois casos, o que muda é a interpretação na hora de
+    // calcular o subtotal do item (ver order-service, que recebe o peso
+    // vendido em gramas e divide por 1000 pra multiplicar por este valor).
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal preco;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_preco", nullable = false, length = 20)
+    @Builder.Default
+    private TipoPreco tipoPreco = TipoPreco.UNIDADE;
 
     // Foto ilustrativa do produto: data URI completa (ex: "data:image/jpeg;base64,...") ou null.
     @Column(name = "imagem_base64", columnDefinition = "TEXT")

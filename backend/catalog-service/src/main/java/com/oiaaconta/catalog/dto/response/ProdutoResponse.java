@@ -1,5 +1,6 @@
 package com.oiaaconta.catalog.dto.response;
 
+import com.oiaaconta.catalog.entity.TipoPreco;
 import lombok.Builder;
 import lombok.Data;
 
@@ -15,6 +16,7 @@ public class ProdutoResponse {
     private String nome;
     private String descricao;
     private BigDecimal preco;
+    private TipoPreco tipoPreco;
     private String imagemBase64;
     private Integer numeroCardapio;
     private boolean ativo;

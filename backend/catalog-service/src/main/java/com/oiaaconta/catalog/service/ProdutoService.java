@@ -4,6 +4,7 @@ import com.oiaaconta.catalog.client.IfoodSyncClient;
 import com.oiaaconta.catalog.dto.request.ProdutoRequest;
 import com.oiaaconta.catalog.dto.response.ProdutoResponse;
 import com.oiaaconta.catalog.entity.Produto;
+import com.oiaaconta.catalog.entity.TipoPreco;
 import com.oiaaconta.catalog.exception.BusinessException;
 import com.oiaaconta.catalog.exception.ResourceNotFoundException;
 import com.oiaaconta.catalog.repository.CategoriaRepository;
@@ -54,6 +55,7 @@ public class ProdutoService {
             .nome(request.getNome())
             .descricao(request.getDescricao())
             .preco(request.getPreco())
+            .tipoPreco(request.getTipoPreco() != null ? request.getTipoPreco() : TipoPreco.UNIDADE)
             .imagemBase64(validarImagemOuLimpar(request.getImagemBase64(), null))
             .numeroCardapio(request.getNumeroCardapio())
             .ativo(true)
@@ -69,6 +71,7 @@ public class ProdutoService {
         produto.setNome(request.getNome());
         produto.setDescricao(request.getDescricao());
         produto.setPreco(request.getPreco());
+        produto.setTipoPreco(request.getTipoPreco() != null ? request.getTipoPreco() : TipoPreco.UNIDADE);
         produto.setCategoriaId(request.getCategoriaId());
         produto.setNumeroCardapio(request.getNumeroCardapio());
         // null = campo ausente, não mexe na imagem atual; "" explícito = remove a imagem.
@@ -129,7 +132,7 @@ public class ProdutoService {
             .id(p.getId()).restauranteId(p.getRestauranteId())
             .categoriaId(p.getCategoriaId()).categoriaNome(categoriaNome)
             .nome(p.getNome()).descricao(p.getDescricao())
-            .preco(p.getPreco()).imagemBase64(p.getImagemBase64())
+            .preco(p.getPreco()).tipoPreco(p.getTipoPreco()).imagemBase64(p.getImagemBase64())
             .numeroCardapio(p.getNumeroCardapio())
             .ativo(p.isAtivo()).build();
     }

@@ -1,5 +1,6 @@
 package com.oiaaconta.catalog.dto.request;
 
+import com.oiaaconta.catalog.entity.TipoPreco;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -17,6 +18,9 @@ public class ProdutoRequest {
     @NotNull(message = "Preço obrigatório")
     @DecimalMin(value = "0.01", message = "Preço deve ser maior que zero")
     private BigDecimal preco;
+
+    // null = UNIDADE (produtos existentes continuam vendidos por unidade).
+    private TipoPreco tipoPreco;
 
     @NotNull(message = "Categoria obrigatória")
     private Long categoriaId;

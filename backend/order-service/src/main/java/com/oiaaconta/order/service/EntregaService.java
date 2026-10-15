@@ -17,6 +17,7 @@ import com.oiaaconta.order.enums.StatusEntrega;
 import com.oiaaconta.order.exception.BusinessException;
 import com.oiaaconta.order.exception.ResourceNotFoundException;
 import com.oiaaconta.order.repository.EntregaRepository;
+import com.oiaaconta.order.util.ItemPrecoUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -131,6 +132,8 @@ public class EntregaService {
                     .produtoId(item.getProdutoId())
                     .produtoNome(item.getProdutoNome())
                     .quantidade(item.getQuantidade())
+                    .pesoGramas(item.getPesoGramas())
+                    .volumeMililitros(item.getVolumeMililitros())
                     .precoUnitario(item.getPrecoUnitario())
                     .observacao(item.getObservacao())
                     .build());
@@ -571,13 +574,15 @@ public class EntregaService {
             .map(i -> ItemEntregaResponse.builder()
                 .id(i.getId()).produtoId(i.getProdutoId())
                 .produtoNome(i.getProdutoNome()).quantidade(i.getQuantidade())
+                .pesoGramas(i.getPesoGramas())
+                .volumeMililitros(i.getVolumeMililitros())
                 .precoUnitario(i.getPrecoUnitario()).observacao(i.getObservacao())
                 .comboId(i.getComboId()).comboNome(i.getComboNome())
                 .build())
             .toList();
 
         BigDecimal subtotalItens = e.getItens().stream()
-            .map(i -> i.getPrecoUnitario().multiply(BigDecimal.valueOf(i.getQuantidade())))
+            .map(i -> ItemPrecoUtil.subtotal(i.getPrecoUnitario(), i.getQuantidade(), i.getPesoGramas(), i.getVolumeMililitros()))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal valorFrete = e.getValorFrete() != null ? e.getValorFrete() : BigDecimal.ZERO;
         BigDecimal total = subtotalItens.add(valorFrete);

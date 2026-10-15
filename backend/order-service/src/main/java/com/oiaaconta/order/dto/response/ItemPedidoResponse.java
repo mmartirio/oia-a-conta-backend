@@ -12,6 +12,8 @@ public class ItemPedidoResponse {
     private Long produtoId;
     private String produtoNome;
     private Integer quantidade;
+    private BigDecimal pesoGramas;
+    private BigDecimal volumeMililitros;
     private String observacao;
     private BigDecimal precoUnitario;
     private BigDecimal subtotal;
