@@ -1,5 +1,6 @@
 package com.oiaaconta.order.entity;
 
+import com.oiaaconta.order.enums.BandeiraCartao;
 import com.oiaaconta.order.enums.MetodoPagamento;
 import com.oiaaconta.order.enums.StatusComanda;
 import com.oiaaconta.order.enums.TipoDescontoOrigem;
@@ -48,6 +49,17 @@ public class Comanda {
     private MetodoPagamento metodoPagamento;
 
     private Integer parcelas;
+
+    // Só preenchido em DINHEIRO — usado pra calcular o troco (valorRecebido -
+    // valorTotal) na tela de detalhes da venda, sem precisar persistir o
+    // troco já calculado (valorTotal pode ter desconto aplicado depois).
+    @Column(name = "valor_recebido", precision = 10, scale = 2)
+    private BigDecimal valorRecebido;
+
+    // Só preenchido em CARTAO_CREDITO/CARTAO_DEBITO.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "bandeira_cartao", length = 20)
+    private BandeiraCartao bandeiraCartao;
 
     @OneToMany(mappedBy = "comanda", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default

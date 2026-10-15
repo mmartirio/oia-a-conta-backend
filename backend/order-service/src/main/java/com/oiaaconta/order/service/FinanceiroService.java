@@ -4,6 +4,7 @@ import com.oiaaconta.order.dto.response.ComissaoResponse;
 import com.oiaaconta.order.dto.response.ComparativoResponse;
 import com.oiaaconta.order.dto.response.EvolucaoDiariaResponse;
 import com.oiaaconta.order.dto.response.ResumoFinanceiroResponse;
+import com.oiaaconta.order.dto.response.VendaResponse;
 import com.oiaaconta.order.entity.Comanda;
 import com.oiaaconta.order.entity.Despesa;
 import com.oiaaconta.order.entity.Entrega;
@@ -78,6 +79,64 @@ public class FinanceiroService {
             .qtdEntregas((long) entregas.size())
             .breakdownPorMetodo(breakdown)
             .build();
+    }
+
+    // Lista individual das vendas (não agregada, diferente de getResumo) —
+    // usado na Fila de Pagamento pra mostrar o que já foi vendido/recebido
+    // na sessão de caixa aberta, ordenado da mais recente pra mais antiga.
+    @SuppressWarnings("null")
+    public List<VendaResponse> listarVendas(Long restauranteId, LocalDateTime inicio, LocalDateTime fim) {
+        List<Comanda> comandas = comandaRepository.findWithPedidosEItensByRestauranteIdAndStatusAndClosedAtBetween(
+            restauranteId, StatusComanda.FECHADA, inicio, fim);
+        List<Entrega> entregas = entregaRepository
+            .findByRestauranteIdAndPagamentoConfirmadoCaixaTrueAndEntregueAtBetween(restauranteId, inicio, fim);
+
+        List<VendaResponse> vendas = new ArrayList<>();
+        for (Comanda c : comandas) {
+            BigDecimal total = calcularTotalComanda(c);
+            String itens = descricaoItensComanda(c);
+            // mesaId -1/0 são mesas virtuais (balcão do PDV / delivery, ver
+            // PdvService) — só mostra a mesa na linha quando for real/
+            // cadastrada; sem mesa real, a linha já mostra os produtos.
+            boolean temMesaReal = c.getMesaId() != null && c.getMesaId() > 0;
+            vendas.add(VendaResponse.builder()
+                .id(c.getId())
+                .tipo("COMANDA")
+                .horario(c.getClosedAt())
+                .total(total)
+                .metodoPagamento(c.getMetodoPagamento() != null ? c.getMetodoPagamento().name() : null)
+                .descricao(temMesaReal ? "Mesa " + c.getMesaNumero() : itens)
+                .mesaNumero(temMesaReal ? c.getMesaNumero() : null)
+                .itensDescricao(itens)
+                .parcelas(c.getParcelas())
+                .bandeiraCartao(c.getBandeiraCartao() != null ? c.getBandeiraCartao().name() : null)
+                .troco(c.getValorRecebido() != null ? c.getValorRecebido().subtract(total) : null)
+                .build());
+        }
+        for (Entrega e : entregas) {
+            vendas.add(VendaResponse.builder()
+                .id(e.getId())
+                .tipo("ENTREGA")
+                .horario(e.getEntregueAt())
+                .total(calcularTotalEntrega(e))
+                .metodoPagamento(e.getMetodoPagamento().name())
+                .descricao("Delivery — " + e.getClienteNome())
+                .build());
+        }
+        vendas.sort(Comparator.comparing(VendaResponse::getHorario).reversed());
+        return vendas;
+    }
+
+    // Lista os produtos vendidos na comanda (ex: "2x Hambúrguer, 1x
+    // Refrigerante") — usado tanto pro rótulo da linha (balcão, sem mesa
+    // real) quanto pro modal de Detalhes (sempre, mesa ou não).
+    private String descricaoItensComanda(Comanda c) {
+        String itens = c.getPedidos().stream()
+            .filter(p -> p.getStatus() != StatusPedido.CANCELADO)
+            .flatMap(p -> p.getItens().stream())
+            .map(i -> i.getQuantidade() + "x " + (i.getComboNome() != null ? i.getComboNome() : i.getProdutoNome()))
+            .collect(Collectors.joining(", "));
+        return itens.isBlank() ? "Balcão" : itens;
     }
 
     @SuppressWarnings("null")

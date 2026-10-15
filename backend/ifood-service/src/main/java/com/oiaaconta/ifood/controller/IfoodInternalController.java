@@ -1,7 +1,9 @@
 package com.oiaaconta.ifood.controller;
 
 import com.oiaaconta.ifood.client.IfoodOrderClient;
+import com.oiaaconta.ifood.dto.ifood.IfoodMotivoCancelamentoDto;
 import com.oiaaconta.ifood.entity.IfoodMerchant;
+import com.oiaaconta.ifood.exception.BusinessException;
 import com.oiaaconta.ifood.repository.IfoodMerchantRepository;
 import com.oiaaconta.ifood.service.IfoodCatalogSyncService;
 import com.oiaaconta.ifood.service.IfoodVinculoService;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 // Chamado pelo order-service (IfoodClient) quando o status de uma Entrega
@@ -63,11 +66,35 @@ public class IfoodInternalController {
             // O evento CONCLUDED é gerado automaticamente pelo iFood depois da
             // entrega — não existe endpoint pra sinalizar isso manualmente.
             case "ENTREGUE" -> log.debug("Pedido iFood {} entregue — iFood conclui automaticamente, nenhuma chamada necessária", ifoodOrderId);
-            case "CANCELADA" -> ifoodOrderClient.cancelar(token, ifoodOrderId,
-                Map.of("reason", "Pedido recusado pela loja", "cancellationCode", "501"));
+            case "CANCELADA" -> {
+                IfoodMotivoCancelamentoDto motivo = escolherMotivoCancelamento(token, ifoodOrderId);
+                ifoodOrderClient.cancelar(token, ifoodOrderId,
+                    Map.of("reason", motivo.getDescription(), "cancellationCode", motivo.getCancelCodeId()));
+            }
             default -> log.warn("Status '{}' não mapeado pra Order API do iFood", status);
         }
         return ResponseEntity.noContent().build();
+    }
+
+    // O iFood só aceita, em requestCancellation, um código dentre os válidos
+    // pro status atual desse pedido específico — não existe um código fixo
+    // que sirva sempre (homologação rejeita cancelamento com código
+    // hardcoded). Prioriza um motivo que fale de indisponibilidade da loja
+    // (o caso mais comum de cancelamento pela loja); sem match, usa o
+    // primeiro da lista — sempre um código válido, nunca um fixo.
+    private IfoodMotivoCancelamentoDto escolherMotivoCancelamento(String token, String ifoodOrderId) {
+        List<IfoodMotivoCancelamentoDto> motivos = ifoodOrderClient.motivosCancelamento(token, ifoodOrderId);
+        if (motivos == null || motivos.isEmpty()) {
+            throw new BusinessException("iFood não retornou motivos de cancelamento válidos pro pedido " + ifoodOrderId);
+        }
+        return motivos.stream()
+            .filter(m -> m.getDescription() != null)
+            .filter(m -> {
+                String d = m.getDescription().toLowerCase();
+                return d.contains("loja") || d.contains("estabelecimento") || d.contains("indispon") || d.contains("fech");
+            })
+            .findFirst()
+            .orElse(motivos.get(0));
     }
 
     @PostMapping("/catalogo/sincronizar/{restauranteId}")

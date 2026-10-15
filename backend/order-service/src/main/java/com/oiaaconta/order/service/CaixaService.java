@@ -4,6 +4,7 @@ import com.oiaaconta.order.dto.request.AbrirCaixaRequest;
 import com.oiaaconta.order.dto.request.FecharCaixaRequest;
 import com.oiaaconta.order.dto.response.ResumoFinanceiroResponse;
 import com.oiaaconta.order.dto.response.SessaoCaixaResponse;
+import com.oiaaconta.order.dto.response.VendaResponse;
 import com.oiaaconta.order.entity.SessaoCaixa;
 import com.oiaaconta.order.enums.StatusSessaoCaixa;
 import com.oiaaconta.order.exception.BusinessException;
@@ -12,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -45,6 +47,27 @@ public class CaixaService {
             .findFirstByRestauranteIdAndStatusOrderByAbertoEmDesc(restauranteId, StatusSessaoCaixa.ABERTO)
             .orElseThrow(() -> new BusinessException("Não há caixa aberto"));
         return financeiroService.getResumo(restauranteId, sessao.getAbertoEm(), LocalDateTime.now());
+    }
+
+    // Vendas individuais (não agregadas) de hoje — complementa o resumo() na
+    // Fila de Pagamento, mostrando o que já foi vendido/recebido. Restrito
+    // ao dia de hoje mesmo que o caixa tenha sido aberto antes da meia-noite
+    // (caixa que fica aberto de um dia pro outro) — pra ver vendas de dias
+    // anteriores, ver listarVendasHistorico.
+    public List<VendaResponse> listarVendas(Long restauranteId) {
+        sessaoCaixaRepository
+            .findFirstByRestauranteIdAndStatusOrderByAbertoEmDesc(restauranteId, StatusSessaoCaixa.ABERTO)
+            .orElseThrow(() -> new BusinessException("Não há caixa aberto"));
+        LocalDateTime inicioDia = LocalDate.now().atStartOfDay();
+        return financeiroService.listarVendas(restauranteId, inicioDia, LocalDateTime.now());
+    }
+
+    // Vendas individuais de um dia específico no passado — janela de
+    // histórico de vendas, independe de haver caixa aberto ou não.
+    public List<VendaResponse> listarVendasHistorico(Long restauranteId, LocalDate dia) {
+        LocalDateTime inicio = dia.atStartOfDay();
+        LocalDateTime fim = dia.plusDays(1).atStartOfDay();
+        return financeiroService.listarVendas(restauranteId, inicio, fim);
     }
 
     @Transactional

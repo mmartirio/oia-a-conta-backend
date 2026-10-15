@@ -106,6 +106,8 @@ public class ComandaService {
         comanda.setStatus(StatusComanda.FECHADA);
         comanda.setMetodoPagamento(request.getMetodoPagamento());
         comanda.setParcelas(request.getParcelas());
+        comanda.setValorRecebido(request.getValorRecebido());
+        comanda.setBandeiraCartao(request.getBandeiraCartao());
         comanda.setClosedAt(LocalDateTime.now());
         // Snapshot persistido no fechamento — desconto não é derivável depois
         // (vem de uma regra externa) e valorTotal evita recalcular a mesma

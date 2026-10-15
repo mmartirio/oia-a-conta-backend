@@ -1,6 +1,7 @@
 package com.oiaaconta.ifood.client;
 
 import com.oiaaconta.ifood.dto.ifood.IfoodEventoDto;
+import com.oiaaconta.ifood.dto.ifood.IfoodMotivoCancelamentoDto;
 import com.oiaaconta.ifood.dto.ifood.IfoodPedidoDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
@@ -47,6 +48,14 @@ public interface IfoodOrderClient {
 
     @PostMapping("/order/v1.0/orders/{orderId}/dispatch")
     void saiuParaEntrega(@RequestHeader("Authorization") String bearerToken, @PathVariable("orderId") String orderId);
+
+    // Obrigatório chamar antes de requestCancellation: o iFood só aceita, no
+    // cancelamento, um código dentre os válidos pro status atual desse
+    // pedido específico (varia por pedido/status) — não existe um código
+    // fixo que funcione sempre. Homologação rejeita cancelamento feito com
+    // código fixo/hardcoded.
+    @GetMapping("/order/v1.0/orders/{orderId}/cancellationReasons")
+    List<IfoodMotivoCancelamentoDto> motivosCancelamento(@RequestHeader("Authorization") String bearerToken, @PathVariable("orderId") String orderId);
 
     @PostMapping("/order/v1.0/orders/{orderId}/requestCancellation")
     void cancelar(@RequestHeader("Authorization") String bearerToken, @PathVariable("orderId") String orderId, @RequestBody Map<String, String> body);

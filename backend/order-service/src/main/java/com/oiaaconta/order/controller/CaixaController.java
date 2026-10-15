@@ -4,6 +4,7 @@ import com.oiaaconta.order.dto.request.AbrirCaixaRequest;
 import com.oiaaconta.order.dto.request.FecharCaixaRequest;
 import com.oiaaconta.order.dto.response.ResumoFinanceiroResponse;
 import com.oiaaconta.order.dto.response.SessaoCaixaResponse;
+import com.oiaaconta.order.dto.response.VendaResponse;
 import com.oiaaconta.order.service.CaixaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -42,6 +44,26 @@ public class CaixaController {
     public ResponseEntity<ResumoFinanceiroResponse> resumo(
             @RequestHeader("X-Restaurante-Id") Long restauranteId) {
         return ResponseEntity.ok(caixaService.resumo(restauranteId));
+    }
+
+    // Vendas individuais (comandas + entregas) de hoje já recebidas na
+    // sessão de caixa aberta — mostrado na Fila de Pagamento, abaixo da
+    // fila de quem ainda aguarda pagamento.
+    @GetMapping("/vendas")
+    @PreAuthorize("hasAnyRole('CAIXA','ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<List<VendaResponse>> vendas(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId) {
+        return ResponseEntity.ok(caixaService.listarVendas(restauranteId));
+    }
+
+    // Janela de histórico de vendas — um dia específico no passado,
+    // independe de haver caixa aberto ou não.
+    @GetMapping("/vendas/historico")
+    @PreAuthorize("hasAnyRole('CAIXA','ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<List<VendaResponse>> vendasHistorico(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @RequestParam("data") LocalDate data) {
+        return ResponseEntity.ok(caixaService.listarVendasHistorico(restauranteId, data));
     }
 
     @PostMapping("/abrir")
