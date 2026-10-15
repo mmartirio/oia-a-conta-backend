@@ -86,6 +86,12 @@ public class AuthService {
         loginAttemptService.registrarSucesso(request.getEmail());
         Usuario usuario = usuarioRepository.findByEmail(request.getEmail())
             .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+        // Checado só depois da senha conferir (não via UserDetails.disabled,
+        // que o Spring testa ANTES da senha) — assim quem não tem a senha não
+        // descobre que a conta existe. Mesmo bloqueio do login com Google.
+        if (!usuario.isAtivo()) {
+            throw new BusinessException("Usuário desativado. Entre em contato com o administrador.");
+        }
         if (!usuario.isEmailVerificado()) {
             throw new BusinessException("E-mail não verificado. Verifique sua caixa de entrada.");
         }

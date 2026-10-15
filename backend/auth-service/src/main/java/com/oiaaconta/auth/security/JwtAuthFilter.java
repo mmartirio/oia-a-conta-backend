@@ -44,6 +44,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String email = jwtUtil.extractEmail(token);
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            // Token emitido antes do usuário ser desativado continua com
+            // assinatura válida até expirar — sem essa checagem, desativar um
+            // usuário não derrubava a sessão já aberta dele.
+            if (usuarioRepository.findByEmail(email).map(u -> !u.isAtivo()).orElse(true)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             UserDetails userDetails = userDetailsService.loadUserByUsername(email);
             UsernamePasswordAuthenticationToken authToken =
                 new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
