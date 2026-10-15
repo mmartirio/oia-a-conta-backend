@@ -99,6 +99,12 @@ jobs:
           command_timeout: 40m
           script: |
             cd /opt/oia-a-conta-backend
+            # Sem isso, qualquer comando que falhar no meio do script (ex:
+            # docker compose up -d abaixo, quando travava no frontend) era
+            # silenciosamente ignorado — o script seguia até o "docker
+            # system prune -f" do final, que quase sempre funciona, e a
+            # action reportava sucesso mesmo com o deploy real tendo falhado.
+            set -e
             git pull origin main
             touch .env
             # Reescreve a linha em vez de sed com o secret interpolado no
@@ -111,7 +117,15 @@ jobs:
             # quebra de linha no valor — remove isso aqui também, senão
             # vira uma linha extra quebrada no .env.
             echo "JWT_SECRET=$(printf '%s' "$JWT_SECRET" | tr -d '\r\n')" >> .env
-            docker compose pull
-            docker compose build
-            docker compose up -d --remove-orphans
+            # "frontend" fica de fora de propósito: a tag :latest desse
+            # serviço nunca existiu no GHCR (o CD do repo frontend só
+            # publica :main/:sha) — isso fazia "docker compose pull"/"up -d"
+            # sem argumentos abortar inteiro, travando a atualização de
+            # TODOS os outros serviços mesmo com o build deles OK. O site
+            # real é servido pela Vercel, não por esse container (ver nota
+            # no DEPLOY.md sobre essa ambiguidade).
+            SERVICES="discovery-service redis postgres auth-service api-gateway notification-service table-service order-service billing-service catalog-service evolution-api ifood-service ollama whatsapp-service"
+            docker compose pull $SERVICES
+            docker compose build $SERVICES
+            docker compose up -d --remove-orphans $SERVICES
             docker system prune -f
