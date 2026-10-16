@@ -50,6 +50,14 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
+        <!-- O client Feign padrão (HttpURLConnection) não suporta o verbo
+             PATCH, usado pela Catalog API do iFood (atualizar categoria,
+             pausar item) — httpclient5 no classpath faz o Spring Cloud
+             trocar de client automaticamente. -->
+        <dependency>
+            <groupId>io.github.openfeign</groupId>
+            <artifactId>feign-hc5</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>

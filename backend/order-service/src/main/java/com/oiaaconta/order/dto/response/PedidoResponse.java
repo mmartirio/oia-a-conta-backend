@@ -21,4 +21,10 @@ public class PedidoResponse {
     private List<ItemPedidoResponse> itens;
     private LocalDateTime criadoEm;
     private LocalDateTime prontoEm;
+
+    // Populados a partir da Entrega vinculada (ver PedidoService.toResponse)
+    // — o número que aparece pro cliente/lojista no iFood precisa bater com
+    // o que a cozinha vê aqui, não o id interno do Pedido.
+    private boolean origemIfood;
+    private String ifoodDisplayId;
 }

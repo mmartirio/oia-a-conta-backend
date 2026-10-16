@@ -9,5 +9,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class IfoodCategoriaRequest {
     private String name;
-    private String externalCode;
+    // AVAILABLE | UNAVAILABLE
+    private String status;
+    // DEFAULT (itens comuns) | PIZZA (com grupos de complemento obrigatórios)
+    private String template;
+    private Integer sequence;
 }

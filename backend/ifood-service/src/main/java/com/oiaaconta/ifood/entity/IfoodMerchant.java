@@ -5,10 +5,12 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
-// Vínculo de um restaurante com uma loja (merchant) do iFood — criado ao
-// final do fluxo de autorização (ver IfoodVinculoService). O access token
-// aqui é do MERCHANT (obtido via authorization_code), não o token de
-// aplicação (client_credentials), que nunca é persistido.
+// Vínculo de um restaurante com uma loja (merchant) do iFood — criado em
+// IfoodVinculoService.conectar(). Aplicação Centralizada: accessToken aqui é
+// o token de APLICAÇÃO (client_credentials), igual em todas as linhas —
+// mantido por merchant só pra não mudar a assinatura de
+// garantirTokenValido(merchant) que os outros serviços já usam.
+// refreshToken fica sempre null (client_credentials não usa refresh_token).
 @Entity
 @Table(name = "ifood_merchants")
 @Data
@@ -30,11 +32,12 @@ public class IfoodMerchant {
     @Column(name = "merchant_nome", length = 200)
     private String merchantNome;
 
-    // Cifrados no banco — ver TokenCriptografadoConverter.
+    // Cifrado no banco — ver TokenCriptografadoConverter.
     @Column(name = "access_token", columnDefinition = "TEXT")
     @Convert(converter = com.oiaaconta.ifood.util.TokenCriptografadoConverter.class)
     private String accessToken;
 
+    // Cifrado no banco — ver TokenCriptografadoConverter.
     @Column(name = "refresh_token", columnDefinition = "TEXT")
     @Convert(converter = com.oiaaconta.ifood.util.TokenCriptografadoConverter.class)
     private String refreshToken;

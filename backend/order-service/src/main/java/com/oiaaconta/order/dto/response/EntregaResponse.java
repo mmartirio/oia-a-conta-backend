@@ -58,6 +58,8 @@ public class EntregaResponse {
 
     private Boolean origemIfood;
     private String ifoodOrderId;
+    private String ifoodDisplayId;
+    private LocalDateTime prontoEm;
 
     // Só preenchido quando metodoPagamento é PIX (ver EntregaService.criar) —
     // o caller (whatsapp-service) usa isso pra mandar a chave PIX ao cliente

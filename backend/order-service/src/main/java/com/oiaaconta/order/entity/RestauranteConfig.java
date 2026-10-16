@@ -70,4 +70,11 @@ public class RestauranteConfig {
     @Builder.Default
     @Column(name = "entregador_externo", nullable = false)
     private boolean entregadorExterno = false;
+
+    // Usado no cronômetro do painel de Delivery quando o produto do pedido
+    // não tem tempo_preparo_minutos próprio configurado (ver Produto,
+    // catalog-service).
+    @Builder.Default
+    @Column(name = "tempo_preparo_padrao_minutos", nullable = false)
+    private Integer tempoPreparoPadraoMinutos = 15;
 }

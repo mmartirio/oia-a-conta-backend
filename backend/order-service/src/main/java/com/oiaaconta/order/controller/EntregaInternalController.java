@@ -25,4 +25,25 @@ public class EntregaInternalController {
             @Valid @RequestBody EntregaRequest request) {
         return ResponseEntity.status(201).body(entregaService.criar(restauranteId, request));
     }
+
+    // Chamado pelo ifood-service quando chega um evento CANCELLED via
+    // polling (cancelamento decidido do lado do iFood/cliente) — só atualiza
+    // o status local, sem notificar o iFood de volta.
+    @PostMapping("/ifood/{ifoodOrderId}/cancelar")
+    public ResponseEntity<Void> cancelarOrigemIfood(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @PathVariable String ifoodOrderId) {
+        entregaService.cancelarOrigemIfood(restauranteId, ifoodOrderId);
+        return ResponseEntity.noContent().build();
+    }
+
+    // Chamado pelo ifood-service quando chega um evento CONCLUDED via
+    // polling — gerado automaticamente pelo iFood depois da entrega.
+    @PostMapping("/ifood/{ifoodOrderId}/concluir")
+    public ResponseEntity<Void> concluirOrigemIfood(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @PathVariable String ifoodOrderId) {
+        entregaService.concluirOrigemIfood(restauranteId, ifoodOrderId);
+        return ResponseEntity.noContent().build();
+    }
 }

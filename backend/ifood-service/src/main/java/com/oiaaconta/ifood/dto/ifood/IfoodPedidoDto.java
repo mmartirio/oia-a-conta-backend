@@ -58,12 +58,10 @@ public class IfoodPedidoDto {
         // (IfoodMapeamento, tipo+ifoodId).
         private String externalCode;
         private Integer quantity;
-        private Preco unitPrice;
-    }
-
-    @Data
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class Preco {
-        private BigDecimal value;
+        // Número puro (ex: 5.0), não um objeto {"value": ...} como no corpo
+        // que a gente ENVIA pro catálogo — confirmado contra um pedido real
+        // recebido na homologação (o formato anterior travava a
+        // desserialização com MismatchedInputException).
+        private BigDecimal unitPrice;
     }
 }

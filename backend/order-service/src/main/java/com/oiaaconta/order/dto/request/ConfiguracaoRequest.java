@@ -13,4 +13,5 @@ public class ConfiguracaoRequest {
     private String alertaPedidoSom;
     private Boolean notificacaoWhatsappFalada;
     private Boolean entregadorExterno;
+    private Integer tempoPreparoPadraoMinutos;
 }

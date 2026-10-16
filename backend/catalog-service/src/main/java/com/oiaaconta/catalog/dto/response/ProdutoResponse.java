@@ -19,5 +19,8 @@ public class ProdutoResponse {
     private TipoPreco tipoPreco;
     private String imagemBase64;
     private Integer numeroCardapio;
+    private Integer tempoPreparoMinutos;
+    private Integer tempoPreparoQuantidadeLimite;
+    private Integer tempoPreparoMinutosAcimaLimite;
     private boolean ativo;
 }

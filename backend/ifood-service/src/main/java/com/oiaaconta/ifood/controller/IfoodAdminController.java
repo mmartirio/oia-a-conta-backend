@@ -1,11 +1,10 @@
 package com.oiaaconta.ifood.controller;
 
-import com.oiaaconta.ifood.dto.ifood.IfoodUserCodeResponse;
+import com.oiaaconta.ifood.dto.ifood.IfoodMerchantDto;
 import com.oiaaconta.ifood.dto.response.IfoodCatalogoSyncResponse;
 import com.oiaaconta.ifood.dto.response.IfoodStatusResponse;
-import com.oiaaconta.ifood.dto.response.IfoodVinculoIniciarResponse;
-import com.oiaaconta.ifood.dto.response.IfoodVinculoStatusResponse;
 import com.oiaaconta.ifood.entity.IfoodMerchant;
+import com.oiaaconta.ifood.exception.BusinessException;
 import com.oiaaconta.ifood.repository.IfoodMerchantRepository;
 import com.oiaaconta.ifood.service.IfoodCatalogSyncService;
 import com.oiaaconta.ifood.service.IfoodVinculoService;
@@ -13,6 +12,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/ifood/admin")
@@ -38,22 +40,23 @@ public class IfoodAdminController {
             .orElse(IfoodStatusResponse.builder().conectado(false).build()));
     }
 
-    @PostMapping("/vincular")
-    public ResponseEntity<IfoodVinculoIniciarResponse> vincular(@RequestHeader("X-Restaurante-Id") Long restauranteId) {
-        IfoodUserCodeResponse resp = vinculoService.iniciar(restauranteId);
-        return ResponseEntity.ok(IfoodVinculoIniciarResponse.builder()
-            .userCode(resp.getUserCode())
-            .verificationUrl(resp.getVerificationUrl())
-            .verificationUrlComplete(resp.getVerificationUrlComplete())
-            .expiresIn(resp.getExpiresIn())
-            .build());
+    // Lojas já autorizadas pra esta aplicação no iFood (pelo Portal do
+    // Parceiro) e ainda não reivindicadas por nenhum restaurante daqui — o
+    // admin escolhe qual delas é a sua em POST /vincular.
+    @GetMapping("/lojas-disponiveis")
+    public ResponseEntity<List<IfoodMerchantDto>> lojasDisponiveis() {
+        return ResponseEntity.ok(vinculoService.listarLojasDisponiveis());
     }
 
-    @GetMapping("/vincular/status")
-    public ResponseEntity<IfoodVinculoStatusResponse> vincularStatus(@RequestHeader("X-Restaurante-Id") Long restauranteId) {
-        return ResponseEntity.ok(IfoodVinculoStatusResponse.builder()
-            .status(vinculoService.verificar(restauranteId))
-            .build());
+    @PostMapping("/vincular")
+    public ResponseEntity<Void> vincular(@RequestHeader("X-Restaurante-Id") Long restauranteId,
+                                          @RequestBody Map<String, String> body) {
+        String merchantId = body.get("merchantId");
+        if (merchantId == null || merchantId.isBlank()) {
+            throw new BusinessException("merchantId é obrigatório");
+        }
+        vinculoService.conectar(restauranteId, merchantId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/catalogo/sincronizar")

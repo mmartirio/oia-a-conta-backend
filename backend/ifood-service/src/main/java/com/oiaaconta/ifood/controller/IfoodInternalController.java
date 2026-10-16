@@ -53,23 +53,33 @@ public class IfoodInternalController {
         switch (status) {
             case "CONFIRMADA" -> {
                 ifoodOrderClient.confirmar(token, ifoodOrderId);
+                log.info("iFood: pedido {} CONFIRMADO (POST /orders/{}/confirm)", ifoodOrderId, ifoodOrderId);
                 // Opcional na API do iFood — não deixa a confirmação falhar
                 // se isso der erro (pedido já teria sido confirmado acima).
                 try {
                     ifoodOrderClient.iniciarPreparo(token, ifoodOrderId);
+                    log.info("iFood: pedido {} preparo iniciado (POST /orders/{}/startPreparation)", ifoodOrderId, ifoodOrderId);
                 } catch (Exception e) {
                     log.warn("Falha ao avisar início de preparo pro iFood (pedido {}): {}", ifoodOrderId, e.getMessage());
                 }
             }
-            case "PRONTO_PARA_ENTREGA" -> ifoodOrderClient.prontoParaEntrega(token, ifoodOrderId);
-            case "SAIU_PARA_ENTREGA" -> ifoodOrderClient.saiuParaEntrega(token, ifoodOrderId);
+            case "PRONTO_PARA_ENTREGA" -> {
+                ifoodOrderClient.prontoParaEntrega(token, ifoodOrderId);
+                log.info("iFood: pedido {} PRONTO PARA ENTREGA (POST /orders/{}/readyToPickup)", ifoodOrderId, ifoodOrderId);
+            }
+            case "SAIU_PARA_ENTREGA" -> {
+                ifoodOrderClient.saiuParaEntrega(token, ifoodOrderId);
+                log.info("iFood: pedido {} DESPACHADO (POST /orders/{}/dispatch)", ifoodOrderId, ifoodOrderId);
+            }
             // O evento CONCLUDED é gerado automaticamente pelo iFood depois da
             // entrega — não existe endpoint pra sinalizar isso manualmente.
-            case "ENTREGUE" -> log.debug("Pedido iFood {} entregue — iFood conclui automaticamente, nenhuma chamada necessária", ifoodOrderId);
+            case "ENTREGUE" -> log.info("iFood: pedido {} entregue — iFood conclui automaticamente, nenhuma chamada necessária", ifoodOrderId);
             case "CANCELADA" -> {
                 IfoodMotivoCancelamentoDto motivo = escolherMotivoCancelamento(token, ifoodOrderId);
                 ifoodOrderClient.cancelar(token, ifoodOrderId,
                     Map.of("reason", motivo.getDescription(), "cancellationCode", motivo.getCancelCodeId()));
+                log.info("iFood: pedido {} CANCELADO (POST /orders/{}/requestCancellation, código {} - \"{}\")",
+                    ifoodOrderId, ifoodOrderId, motivo.getCancelCodeId(), motivo.getDescription());
             }
             default -> log.warn("Status '{}' não mapeado pra Order API do iFood", status);
         }

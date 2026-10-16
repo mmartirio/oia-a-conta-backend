@@ -5,33 +5,41 @@ import com.oiaaconta.ifood.client.IfoodMerchantClient;
 import com.oiaaconta.ifood.config.IfoodProperties;
 import com.oiaaconta.ifood.dto.ifood.IfoodMerchantDto;
 import com.oiaaconta.ifood.dto.ifood.IfoodTokenResponse;
-import com.oiaaconta.ifood.dto.ifood.IfoodUserCodeResponse;
 import com.oiaaconta.ifood.entity.IfoodMerchant;
-import com.oiaaconta.ifood.enums.IfoodVinculoStatus;
 import com.oiaaconta.ifood.exception.BusinessException;
 import com.oiaaconta.ifood.repository.IfoodMerchantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-// Fluxo de vínculo de loja do iFood pra integradores de PDV/ERP: a
-// aplicação (Client ID/Secret cadastrados uma vez no portal deles) gera um
-// código que o admin do restaurante confirma no painel do iFood; depois
-// disso a aplicação troca esse código por um token de acesso já autorizado
-// pra(s) loja(s) daquela conta.
+// Vínculo de loja do iFood — aplicação cadastrada como CENTRALIZADA no
+// portal deles (SaaS, uma instância só atendendo várias lojas), não
+// distribuída. Isso muda o mecanismo de autenticação/autorização:
 //
-// Aviso: os nomes exatos dos parâmetros/endpoints seguem a Authentication
-// API do iFood pelo meu conhecimento geral dela, não uma consulta à doc
-// atual — conferir contra a doc/sandbox reais antes de ir pra produção.
+// - Autenticação da aplicação: grant client_credentials (clientId/clientSecret
+//   direto, sem userCode/authorization_code) — token de aplicação, não de
+//   loja específica, mas continua sendo salvo em cada IfoodMerchant (campo
+//   accessToken) pra não precisar mexer nos outros serviços que já esperam
+//   "um token válido por merchant" (IfoodCatalogSyncService,
+//   IfoodStatusSyncService, IfoodEventsPoller etc.) — o conteúdo é o mesmo
+//   token de app em todas as linhas, só a validade que é controlada por
+//   linha.
+// - Autorização por loja: pra apps centralizados, o dono da loja autoriza
+//   a aplicação pelo Portal do Parceiro do iFood (marketplace) — não existe
+//   mais o passo de gerar/confirmar userCode aqui. O que o backend faz é
+//   listar (GET /merchant/v1.0/merchants) as lojas já autorizadas pra essa
+//   aplicação e deixar o admin escolher qual é a dele — ver
+//   listarLojasDisponiveis()/conectar().
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -42,76 +50,53 @@ public class IfoodVinculoService {
     private final IfoodMerchantRepository merchantRepository;
     private final IfoodProperties properties;
 
-    // Estado do vínculo em andamento — vive só na memória enquanto o admin
-    // não confirma no painel do iFood (poucos minutos); não precisa de
-    // tabela própria, e se o processo reiniciar o admin só clica de novo.
-    private final Map<Long, PendenteVinculo> pendentes = new ConcurrentHashMap<>();
-
-    private record PendenteVinculo(String userCode, String verifier, Instant expiraEm) {}
-
-    public IfoodUserCodeResponse iniciar(Long restauranteId) {
+    // Lojas autorizadas pra essa aplicação no iFood, mas que ainda não foram
+    // reivindicadas por nenhum restaurante daqui — é dessa lista que o admin
+    // escolhe qual é a loja dele em conectar().
+    public List<IfoodMerchantDto> listarLojasDisponiveis() {
         exigirCredenciaisConfiguradas();
+        String token = obterTokenAplicacao();
+        List<IfoodMerchantDto> todas = merchantClient.listarMerchants("Bearer " + token);
 
-        String form = formBody(Map.of("clientId", properties.getClientId()));
-        IfoodUserCodeResponse resp = authClient.gerarUserCode(form);
+        Set<String> jaVinculadas = merchantRepository.findByAtivoTrue().stream()
+            .map(IfoodMerchant::getMerchantId)
+            .collect(Collectors.toSet());
 
-        pendentes.put(restauranteId, new PendenteVinculo(
-            resp.getUserCode(), resp.getAuthorizationCodeVerifier(),
-            Instant.now().plusSeconds(resp.getExpiresIn() != null ? resp.getExpiresIn() : 600)));
-
-        return resp;
+        return todas.stream()
+            .filter(m -> !jaVinculadas.contains(m.getId()))
+            .toList();
     }
 
-    // Chamado em poll pelo frontend enquanto o admin não confirma no painel
-    // do iFood — tenta trocar o código pelo token; se ainda não foi
-    // autorizado, o iFood recusa e o status continua "aguardando".
-    public IfoodVinculoStatus verificar(Long restauranteId) {
-        PendenteVinculo pendente = pendentes.get(restauranteId);
-        if (pendente == null) {
-            return merchantRepository.findByRestauranteId(restauranteId).map(m -> m.isAtivo()
-                ? IfoodVinculoStatus.CONECTADO
-                : IfoodVinculoStatus.NAO_INICIADO).orElse(IfoodVinculoStatus.NAO_INICIADO);
-        }
-        if (Instant.now().isAfter(pendente.expiraEm())) {
-            pendentes.remove(restauranteId);
-            return IfoodVinculoStatus.EXPIRADO;
+    @Transactional
+    @SuppressWarnings("null")
+    public void conectar(Long restauranteId, String merchantId) {
+        exigirCredenciaisConfiguradas();
+        if (merchantRepository.findByRestauranteId(restauranteId).filter(IfoodMerchant::isAtivo).isPresent()) {
+            throw new BusinessException("Este restaurante já está conectado a uma loja do iFood");
         }
 
-        Map<String, String> form = new LinkedHashMap<>();
-        form.put("grantType", "authorization_code");
-        form.put("clientId", properties.getClientId());
-        form.put("clientSecret", properties.getClientSecret());
-        form.put("authorizationCode", pendente.userCode());
-        form.put("authorizationCodeVerifier", pendente.verifier());
+        String token = obterTokenAplicacao();
+        IfoodMerchantDto merchant = merchantClient.listarMerchants("Bearer " + token).stream()
+            .filter(m -> m.getId().equals(merchantId))
+            .findFirst()
+            .orElseThrow(() -> new BusinessException(
+                "Essa loja não está autorizada pra esta aplicação no iFood. Autorize primeiro pelo Portal do Parceiro."));
 
-        IfoodTokenResponse token;
-        try {
-            token = authClient.obterToken(formBody(form));
-        } catch (Exception e) {
-            // Ainda não autorizado no painel do iFood — normal durante o poll.
-            log.debug("Vínculo iFood ainda pendente pro restaurante {}: {}", restauranteId, e.getMessage());
-            return IfoodVinculoStatus.AGUARDANDO_AUTORIZACAO;
+        if (merchantRepository.findByAtivoTrue().stream()
+                .anyMatch(m -> merchantId.equals(m.getMerchantId()))) {
+            throw new BusinessException("Essa loja do iFood já está conectada a outro restaurante");
         }
-
-        List<IfoodMerchantDto> merchants = merchantClient.listarMerchants("Bearer " + token.getAccessToken());
-        if (merchants.isEmpty()) {
-            throw new BusinessException("Nenhuma loja liberada pra essa conta do iFood");
-        }
-        IfoodMerchantDto merchant = merchants.get(0);
 
         IfoodMerchant entidade = merchantRepository.findByRestauranteId(restauranteId)
             .orElse(IfoodMerchant.builder().restauranteId(restauranteId).build());
         entidade.setMerchantId(merchant.getId());
         entidade.setMerchantNome(merchant.getName());
-        entidade.setAccessToken(token.getAccessToken());
-        entidade.setRefreshToken(token.getRefreshToken());
-        entidade.setExpiraEm(LocalDateTime.now().plusSeconds(token.getExpiresIn() != null ? token.getExpiresIn() : 21600));
+        entidade.setAccessToken(token);
+        entidade.setRefreshToken(null);
+        entidade.setExpiraEm(LocalDateTime.now().plusMinutes(50));
         entidade.setAtivo(true);
         entidade.setConectadoEm(LocalDateTime.now());
         merchantRepository.save(entidade);
-
-        pendentes.remove(restauranteId);
-        return IfoodVinculoStatus.CONECTADO;
     }
 
     public void desconectar(Long restauranteId) {
@@ -119,29 +104,31 @@ public class IfoodVinculoService {
             m.setAtivo(false);
             merchantRepository.save(m);
         });
-        pendentes.remove(restauranteId);
     }
 
-    // Garante um access token válido pro merchant, renovando via
-    // refresh_token se estiver perto de expirar. Usado por qualquer chamada
-    // autenticada às demais APIs do iFood (catálogo, pedidos, status).
+    // Garante um token de aplicação válido — chamado por merchant (linha do
+    // IfoodMerchant) pra não mexer na assinatura que os outros serviços já
+    // usam, mas o token em si é o mesmo pra qualquer loja (client_credentials
+    // não é por merchant). Renovado sempre via client_credentials — grant
+    // refresh_token não existe pra esse tipo de aplicação.
     public String garantirTokenValido(IfoodMerchant merchant) {
         if (merchant.getExpiraEm() != null && merchant.getExpiraEm().isAfter(LocalDateTime.now().plusMinutes(5))) {
             return merchant.getAccessToken();
         }
+        String token = obterTokenAplicacao();
+        merchant.setAccessToken(token);
+        merchant.setExpiraEm(LocalDateTime.now().plusMinutes(50));
+        merchantRepository.save(merchant);
+        return token;
+    }
 
+    private String obterTokenAplicacao() {
         Map<String, String> form = new LinkedHashMap<>();
-        form.put("grantType", "refresh_token");
+        form.put("grantType", "client_credentials");
         form.put("clientId", properties.getClientId());
         form.put("clientSecret", properties.getClientSecret());
-        form.put("refreshToken", merchant.getRefreshToken());
-
         IfoodTokenResponse token = authClient.obterToken(formBody(form));
-        merchant.setAccessToken(token.getAccessToken());
-        merchant.setRefreshToken(token.getRefreshToken());
-        merchant.setExpiraEm(LocalDateTime.now().plusSeconds(token.getExpiresIn() != null ? token.getExpiresIn() : 21600));
-        merchantRepository.save(merchant);
-        return merchant.getAccessToken();
+        return token.getAccessToken();
     }
 
     private void exigirCredenciaisConfiguradas() {

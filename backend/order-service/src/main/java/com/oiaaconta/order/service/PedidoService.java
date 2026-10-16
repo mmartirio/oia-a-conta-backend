@@ -46,6 +46,7 @@ public class PedidoService {
     private final CatalogClient catalogClient;
     private final AuditoriaService auditoriaService;
     private final ComboEscolhaResolver comboEscolhaResolver;
+    private final com.oiaaconta.order.repository.EntregaRepository entregaRepository;
 
     @Transactional
     public PedidoResponse enviarParaCozinha(Long restauranteId, Long comandaId, PedidoRequest request, String authHeader) {
@@ -327,6 +328,21 @@ public class PedidoService {
         // p.getComanda() é null pra pedido de delivery — comanda é exclusiva
         // do fluxo de garçom/mesa (ver DeliveryOrchestrationService).
         Comanda comanda = p.getComanda();
+
+        // Pedido de delivery/iFood tem entregaId — busca a Entrega vinculada
+        // só pra saber se veio do iFood e qual o número de lá, que precisa
+        // bater com o que aparece no painel de Delivery. Sem isso a cozinha
+        // via um id interno diferente do número real do pedido no iFood.
+        boolean origemIfood = false;
+        String ifoodDisplayId = null;
+        if (p.getEntregaId() != null) {
+            var entrega = entregaRepository.findById(p.getEntregaId()).orElse(null);
+            if (entrega != null) {
+                origemIfood = Boolean.TRUE.equals(entrega.getOrigemIfood());
+                ifoodDisplayId = entrega.getIfoodDisplayId();
+            }
+        }
+
         return PedidoResponse.builder()
             .id(p.getId()).comandaId(comanda != null ? comanda.getId() : null)
             .restauranteId(p.getRestauranteId())
@@ -336,6 +352,7 @@ public class PedidoService {
             .garconNome(comanda != null ? comanda.getGarconNome() : null)
             .status(p.getStatus().name()).observacao(p.getObservacao())
             .itens(itens).criadoEm(p.getCreatedAt()).prontoEm(p.getReadyAt())
+            .origemIfood(origemIfood).ifoodDisplayId(ifoodDisplayId)
             .build();
     }
 }

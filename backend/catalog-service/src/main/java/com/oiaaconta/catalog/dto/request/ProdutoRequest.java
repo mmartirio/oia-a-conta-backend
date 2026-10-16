@@ -32,4 +32,10 @@ public class ProdutoRequest {
     // Número desse produto na imagem do cardápio numerado (chatbot WhatsApp) —
     // opcional, null = produto não aparece nessa imagem.
     private Integer numeroCardapio;
+
+    // Tempo de preparo (minutos) — null usa o padrão do restaurante.
+    private Integer tempoPreparoMinutos;
+    // Regra opcional por quantidade — os dois juntos ou nenhum.
+    private Integer tempoPreparoQuantidadeLimite;
+    private Integer tempoPreparoMinutosAcimaLimite;
 }

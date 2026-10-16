@@ -120,6 +120,7 @@ public class EntregaService {
             .origemPdv(request.isOrigemPdv())
             .origemIfood(request.isOrigemIfood())
             .ifoodOrderId(request.getIfoodOrderId())
+            .ifoodDisplayId(request.getIfoodDisplayId())
             .build();
 
         // Pedido lançado por um funcionário (PDV/garçom) já é uma decisão da
@@ -414,6 +415,7 @@ public class EntregaService {
             throw new BusinessException("Entrega não foi aceita ainda");
         }
         entrega.setStatus(StatusEntrega.PRONTO_PARA_ENTREGA);
+        entrega.setProntoEm(LocalDateTime.now());
         EntregaResponse resp = toResponse(entregaRepository.save(entrega));
         // Espelha pro board da cozinha — clicar "Pronto" no Delivery também
         // fecha o card lá (mesmo efeito do cozinheiro clicar "Marcar Pronto").
@@ -496,6 +498,42 @@ public class EntregaService {
         entrega.setStatus(StatusEntrega.CANCELADA);
         pagamentoOnlineService.reembolsarSePago(entrega);
         return toResponse(entregaRepository.save(entrega));
+    }
+
+    // Cancelamento decidido do lado do iFood (evento CANCELLED recebido via
+    // polling, ver ifood-service/IfoodEventsPoller) — só atualiza o status
+    // local, sem chamar notificarIfood de volta (a decisão já é deles).
+    // Idempotente: pedido já cancelado (ou não encontrado, ex: pedido de
+    // teste do Portal do Desenvolvedor sem correspondência aqui) não é erro.
+    @Transactional
+    public void cancelarOrigemIfood(Long restauranteId, String ifoodOrderId) {
+        entregaRepository.findByRestauranteIdAndIfoodOrderId(restauranteId, ifoodOrderId).ifPresent(entrega -> {
+            if (entrega.getStatus() == StatusEntrega.ENTREGUE || entrega.getStatus() == StatusEntrega.CANCELADA) {
+                return;
+            }
+            entrega.setStatus(StatusEntrega.CANCELADA);
+            entregaRepository.save(entrega);
+        });
+    }
+
+    // Conclusão decidida do lado do iFood (evento CONCLUDED recebido via
+    // polling) — gerado automaticamente por eles depois da entrega,
+    // principalmente em pedidos de envio imediato, sem passar pelos passos
+    // manuais daqui (pronto/saiu). Idempotente, mesmo padrão de
+    // cancelarOrigemIfood.
+    @Transactional
+    public void concluirOrigemIfood(Long restauranteId, String ifoodOrderId) {
+        entregaRepository.findByRestauranteIdAndIfoodOrderId(restauranteId, ifoodOrderId).ifPresent(entrega -> {
+            if (entrega.getStatus() == StatusEntrega.ENTREGUE || entrega.getStatus() == StatusEntrega.CANCELADA) {
+                return;
+            }
+            entrega.setStatus(StatusEntrega.ENTREGUE);
+            entrega.setEntregueAt(LocalDateTime.now());
+            if (entrega.getMetodoPagamento() != MetodoPagamento.PIX) {
+                entrega.setPagamentoConfirmadoCaixa(true);
+            }
+            entregaRepository.save(entrega);
+        });
     }
 
     @Transactional
@@ -671,6 +709,7 @@ public class EntregaService {
             .enderecoLatitude(e.getEnderecoLatitude()).enderecoLongitude(e.getEnderecoLongitude())
             .distanciaKm(e.getDistanciaKm()).valorFrete(valorFrete)
             .origemIfood(Boolean.TRUE.equals(e.getOrigemIfood())).ifoodOrderId(e.getIfoodOrderId())
+            .ifoodDisplayId(e.getIfoodDisplayId()).prontoEm(e.getProntoEm())
             .build();
     }
 

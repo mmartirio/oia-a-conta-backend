@@ -52,6 +52,21 @@ public class Produto {
     @Column(name = "numero_cardapio")
     private Integer numeroCardapio;
 
+    // Tempo de preparo próprio (minutos) — nulo usa o padrão do restaurante
+    // (ver RestauranteConfig.tempoPreparoPadraoMinutos, order-service).
+    @Column(name = "tempo_preparo_minutos")
+    private Integer tempoPreparoMinutos;
+
+    // Regra opcional de tempo por quantidade: a partir de
+    // tempoPreparoQuantidadeLimite unidades no pedido, usa
+    // tempoPreparoMinutosAcimaLimite em vez de tempoPreparoMinutos. Os dois
+    // campos são usados juntos ou nenhum dos dois.
+    @Column(name = "tempo_preparo_quantidade_limite")
+    private Integer tempoPreparoQuantidadeLimite;
+
+    @Column(name = "tempo_preparo_minutos_acima_limite")
+    private Integer tempoPreparoMinutosAcimaLimite;
+
     @Builder.Default
     private boolean ativo = true;
 }

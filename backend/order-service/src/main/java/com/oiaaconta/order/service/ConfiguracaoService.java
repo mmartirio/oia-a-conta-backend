@@ -33,6 +33,7 @@ public class ConfiguracaoService {
                 .motivoFechamentoManual(null)
                 .alertaPedidoSom("SOM_1")
                 .entregadorExterno(false)
+                .tempoPreparoPadraoMinutos(15)
                 .build());
     }
 
@@ -49,6 +50,7 @@ public class ConfiguracaoService {
         if (request.getAlertaPedidoSom() != null) config.setAlertaPedidoSom(request.getAlertaPedidoSom());
         if (request.getNotificacaoWhatsappFalada() != null) config.setNotificacaoWhatsappFalada(request.getNotificacaoWhatsappFalada());
         if (request.getEntregadorExterno() != null) config.setEntregadorExterno(request.getEntregadorExterno());
+        if (request.getTempoPreparoPadraoMinutos() != null) config.setTempoPreparoPadraoMinutos(request.getTempoPreparoPadraoMinutos());
 
         ConfiguracaoResponse response = toResponse(configRepository.save(config));
         auditoriaService.registrar(restauranteId, "CONFIGURACAO_ALTERADA",
@@ -106,6 +108,7 @@ public class ConfiguracaoService {
             .freteTaxaBase(c.getFreteTaxaBase() != null ? c.getFreteTaxaBase() : BigDecimal.ZERO)
             .freteValorPorKm(c.getFreteValorPorKm() != null ? c.getFreteValorPorKm() : BigDecimal.ZERO)
             .entregadorExterno(c.isEntregadorExterno())
+            .tempoPreparoPadraoMinutos(c.getTempoPreparoPadraoMinutos() != null ? c.getTempoPreparoPadraoMinutos() : 15)
             .build();
     }
 }

@@ -3,6 +3,7 @@ package com.oiaaconta.ifood.client;
 import com.oiaaconta.ifood.dto.order.StatusFuncionamentoDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -24,6 +25,17 @@ public interface OrderClient {
     @PostMapping("/internal/entregas")
     EntregaResponse criarEntrega(@RequestHeader("X-Restaurante-Id") Long restauranteId, @RequestBody EntregaRequest request);
 
+    // Cancelamento decidido do lado do iFood (evento CANCELLED via polling)
+    // — atualiza o status local sem reabrir um novo ciclo de notificação.
+    @PostMapping("/internal/entregas/ifood/{ifoodOrderId}/cancelar")
+    void cancelarEntregaIfood(@RequestHeader("X-Restaurante-Id") Long restauranteId, @PathVariable("ifoodOrderId") String ifoodOrderId);
+
+    // Conclusão decidida do lado do iFood (evento CONCLUDED via polling) —
+    // gerado automaticamente por eles depois da entrega, principalmente em
+    // envio imediato.
+    @PostMapping("/internal/entregas/ifood/{ifoodOrderId}/concluir")
+    void concluirEntregaIfood(@RequestHeader("X-Restaurante-Id") Long restauranteId, @PathVariable("ifoodOrderId") String ifoodOrderId);
+
     // Endpoint público (sem autenticação) — usado pela sincronização de
     // status da loja (ver IfoodStatusSyncService).
     @GetMapping("/api/configuracoes/pausas/status")
@@ -41,6 +53,7 @@ public interface OrderClient {
         public String observacao;
         public boolean origemIfood;
         public String ifoodOrderId;
+        public String ifoodDisplayId;
         public List<ItemEntregaRequest> itens;
     }
 

@@ -20,4 +20,5 @@ public class ConfiguracaoResponse {
     private BigDecimal freteTaxaBase;
     private BigDecimal freteValorPorKm;
     private boolean entregadorExterno;
+    private Integer tempoPreparoPadraoMinutos;
 }

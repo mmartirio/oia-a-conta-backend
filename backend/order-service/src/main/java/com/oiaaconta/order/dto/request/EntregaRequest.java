@@ -54,6 +54,9 @@ public class EntregaRequest {
     // ID do pedido no iFood — obrigatório sse origemIfood, validado em EntregaService.
     private String ifoodOrderId;
 
+    // Código curto do pedido no iFood (ex: "3166"), exibido no painel.
+    private String ifoodDisplayId;
+
     @NotEmpty(message = "O pedido deve ter pelo menos um item")
     @Valid
     private List<ItemRequest> itens;

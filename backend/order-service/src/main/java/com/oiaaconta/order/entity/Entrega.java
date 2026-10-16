@@ -148,4 +148,17 @@ public class Entrega {
     // (confirmar/pronto/saiu/entregue) de volta pra lá.
     @Column(name = "ifood_order_id", length = 100)
     private String ifoodOrderId;
+
+    // Código curto do pedido no iFood (ex: "3166") — o que aparece pro
+    // lojista no Portal do Parceiro deles; diferente de ifoodOrderId (UUID
+    // interno, usado só pras chamadas de API). Mostrado no painel no lugar
+    // do id interno pra pedidos de origem iFood.
+    @Column(name = "ifood_display_id", length = 20)
+    private String ifoodDisplayId;
+
+    // Momento em que virou PRONTO_PARA_ENTREGA — o cronômetro de "tempo de
+    // entrega" no painel conta a partir daqui, zerado (diferente do
+    // cronômetro de "tempo de preparo", que usa createdAt).
+    @Column(name = "pronto_em")
+    private LocalDateTime prontoEm;
 }

@@ -63,6 +63,14 @@ public class Plano {
     @Builder.Default
     private boolean destaque = false;
 
+    // Plano continua ativo (vendável/atribuível) mas não aparece na landing
+    // page nem na lista geral de planos do /registro — só acessível via
+    // link direto (?planoId=X) ou atribuído manualmente pelo SUPER_ADMIN.
+    // (Ainda não usado na listagem pública — padrão true = sem mudança.)
+    @Column(name = "visivel_publicamente", nullable = false)
+    @Builder.Default
+    private boolean visivelPublicamente = true;
+
     // Só planos como o Startup exigem que o restaurante escolha uma
     // modalidade de operação (mesas ou delivery) no cadastro — os demais
     // planos liberam ambas sem restrição. Ver Contrato.modalidadeOperacao.

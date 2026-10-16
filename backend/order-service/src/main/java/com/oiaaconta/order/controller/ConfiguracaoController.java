@@ -61,6 +61,14 @@ public class ConfiguracaoController {
         return ResponseEntity.ok(configuracaoService.upsert(restauranteId, request));
     }
 
+    @PutMapping("/tempo-preparo")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public ResponseEntity<ConfiguracaoResponse> atualizarTempoPreparo(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @RequestBody ConfiguracaoRequest request) {
+        return ResponseEntity.ok(configuracaoService.upsert(restauranteId, request));
+    }
+
     @PutMapping("/frete")
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     public ResponseEntity<ConfiguracaoResponse> atualizarFrete(

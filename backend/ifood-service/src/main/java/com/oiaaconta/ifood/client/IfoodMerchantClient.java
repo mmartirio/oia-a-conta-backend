@@ -15,10 +15,14 @@ public interface IfoodMerchantClient {
     @GetMapping("/merchant/v1.0/merchants")
     List<IfoodMerchantDto> listarMerchants(@RequestHeader("Authorization") String bearerToken);
 
-    // { "available": true/false, "message": [...] } — usado pra decidir se
-    // abre/fecha a loja na sincronização de status (ver IfoodStatusSyncService).
+    // Resposta é uma LISTA (um item por salesChannel/operation, ex:
+    // "ifood-app"/"delivery") — cada item tem "available" e "message.title"
+    // (ex: "Loja aberta"). Confirmado contra a API real: não é um objeto
+    // único como o comentário anterior descrevia. Não usado hoje (o
+    // controle de aberto/fechado é todo local, ver IfoodStatusSyncService),
+    // mantido pra eventual exibição desse status no admin.
     @GetMapping("/merchant/v1.0/merchants/{merchantId}/status")
-    Map<String, Object> statusMerchant(@RequestHeader("Authorization") String bearerToken, @PathVariable("merchantId") String merchantId);
+    List<Map<String, Object>> statusMerchant(@RequestHeader("Authorization") String bearerToken, @PathVariable("merchantId") String merchantId);
 
     // "Fechar agora" no iFood é criar uma interrupção temporária (sem
     // interrupção ativa = loja aberta pro app deles); reabrir é remover

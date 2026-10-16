@@ -4,6 +4,13 @@ server:
 spring:
   application:
     name: ifood-service
+  # Por padrão o Spring roda TODOS os @Scheduled numa única thread — se um
+  # travar (ex: sincronização de status numa chamada lenta), o polling de
+  # pedidos e a sincronização de catálogo param junto, sem erro no log.
+  task:
+    scheduling:
+      pool:
+        size: 5
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/db_ifood}
     username: ${SPRING_DATASOURCE_USERNAME:oiaconta}

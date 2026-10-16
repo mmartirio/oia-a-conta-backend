@@ -58,6 +58,9 @@ public class ProdutoService {
             .tipoPreco(request.getTipoPreco() != null ? request.getTipoPreco() : TipoPreco.UNIDADE)
             .imagemBase64(validarImagemOuLimpar(request.getImagemBase64(), null))
             .numeroCardapio(request.getNumeroCardapio())
+            .tempoPreparoMinutos(request.getTempoPreparoMinutos())
+            .tempoPreparoQuantidadeLimite(request.getTempoPreparoQuantidadeLimite())
+            .tempoPreparoMinutosAcimaLimite(request.getTempoPreparoMinutosAcimaLimite())
             .ativo(true)
             .build());
         notificarIfood(restauranteId);
@@ -74,6 +77,9 @@ public class ProdutoService {
         produto.setTipoPreco(request.getTipoPreco() != null ? request.getTipoPreco() : TipoPreco.UNIDADE);
         produto.setCategoriaId(request.getCategoriaId());
         produto.setNumeroCardapio(request.getNumeroCardapio());
+        produto.setTempoPreparoMinutos(request.getTempoPreparoMinutos());
+        produto.setTempoPreparoQuantidadeLimite(request.getTempoPreparoQuantidadeLimite());
+        produto.setTempoPreparoMinutosAcimaLimite(request.getTempoPreparoMinutosAcimaLimite());
         // null = campo ausente, não mexe na imagem atual; "" explícito = remove a imagem.
         produto.setImagemBase64(validarImagemOuLimpar(request.getImagemBase64(), produto.getImagemBase64()));
         ProdutoResponse response = toResponse(produtoRepository.save(produto), restauranteId);
@@ -134,6 +140,9 @@ public class ProdutoService {
             .nome(p.getNome()).descricao(p.getDescricao())
             .preco(p.getPreco()).tipoPreco(p.getTipoPreco()).imagemBase64(p.getImagemBase64())
             .numeroCardapio(p.getNumeroCardapio())
+            .tempoPreparoMinutos(p.getTempoPreparoMinutos())
+            .tempoPreparoQuantidadeLimite(p.getTempoPreparoQuantidadeLimite())
+            .tempoPreparoMinutosAcimaLimite(p.getTempoPreparoMinutosAcimaLimite())
             .ativo(p.isAtivo()).build();
     }
 
