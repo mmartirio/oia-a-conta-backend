@@ -37,3 +37,6 @@ osrm-data/
 
 # Test reports
 surefire-reports/
+
+# Dumps do banco (dados de clientes) — nunca versionar
+backups/

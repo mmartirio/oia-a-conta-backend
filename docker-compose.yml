@@ -41,6 +41,46 @@ services:
       timeout: 5s
       retries: 5
 
+
+  # ─────────────────────────────────────────────
+  # Backup diário do banco (todos os bancos, pg_dumpall)
+  # ─────────────────────────────────────────────
+  # Proteção mínima contra ransomware/perda: um dump por dia em ./backups,
+  # mantendo BACKUP_RETENCAO_DIAS (padrão 14). ATENÇÃO: isso fica na mesma
+  # VPS — se o servidor for criptografado/apagado, vai junto. Copie
+  # ./backups pra FORA do servidor (ver DEPLOY.md, seção Backup).
+  db-backup:
+    image: postgres:16-alpine
+    container_name: oia-db-backup
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: oiaconta
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      RETENCAO_DIAS: ${BACKUP_RETENCAO_DIAS:-14}
+      TZ: America/Sao_Paulo
+    volumes:
+      - ./backups:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        umask 077
+        while true; do
+          f=/backups/oia-$$(date +%Y%m%d-%H%M).sql.gz
+          if pg_dumpall --clean --if-exists | gzip > "$$f.tmp"; then
+            mv "$$f.tmp" "$$f" && echo "backup ok: $$f"
+          else
+            rm -f "$$f.tmp"; echo "backup FALHOU"
+          fi
+          find /backups -name 'oia-*.sql.gz' -mtime +$$RETENCAO_DIAS -delete
+          sleep 86400
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - oia-net
+
   # ─────────────────────────────────────────────
   # Redis — cache e sessões
   # ─────────────────────────────────────────────
@@ -454,6 +494,8 @@ services:
       TZ: America/Sao_Paulo
       SERVER_PORT: 8080
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:?defina EVOLUTION_API_KEY no .env}
+      # Desliga a telemetria (por padrão a Evolution avisa log.evolution-api.com a cada rota chamada).
+      TELEMETRY_ENABLED: "false"
       DATABASE_ENABLED: "true"
       DATABASE_PROVIDER: postgresql
       DATABASE_CONNECTION_URI: postgresql://oiaconta:${POSTGRES_PASSWORD}@postgres:5432/db_evolution?schema=public

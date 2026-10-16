@@ -150,3 +150,25 @@ Não ficou 100% claro nesta sessão se esse container `frontend` do VPS está de
 - **Matrix falha rápido demais / vários jobs "canceled" sem erro real** → `fail-fast` (default `true`) cancelou os outros jobs assim que um falhou de verdade; procure o job com erro genuíno, não os "canceled".
 - **Push pro repo errado** → confirme que o remote é `oia-a-conta-backend`/`oia-a-conta-frontend`, não `oia-a-conta` (monorepo abandonado, branch `master`, sem deploy real).
 - **JWT muda e ninguém mais loga** → toda troca de `JWT_SECRET` (secret do GitHub) invalida sessões existentes no próximo deploy, porque o `.env` do servidor é reescrito do zero a cada vez.
+
+## 8. Backup e restauração (proteção contra ransomware)
+
+O serviço `db-backup` grava um dump de **todos** os bancos por dia em `/opt/oia-a-conta-backend/backups/` (`oia-AAAAMMDD-HHMM.sql.gz`), mantendo `BACKUP_RETENCAO_DIAS` (padrão 14). Os arquivos contêm dados de clientes — permissão 600, nunca versionar (já está no `.gitignore`).
+
+**Backup só na mesma VPS não protege contra ransomware** — se o servidor for criptografado ou apagado, os dumps vão junto. Mantenha uma cópia **fora** do servidor, de preferência imutável:
+
+- **Snapshot do provedor** (Integrator Host): ative snapshots automáticos diários da VPS no painel, se disponível.
+- **Cópia externa**, por exemplo com `rclone` para um bucket (Backblaze B2 / S3 com Object Lock) via cron no host:
+  ```bash
+  # crontab -e  (todo dia às 4h)
+  0 4 * * * rclone copy /opt/oia-a-conta-backend/backups remoto:oia-backups --max-age 48h
+  ```
+  Use credenciais do bucket que **só permitam gravar** (sem apagar) — assim um invasor no servidor não consegue destruir as cópias.
+
+**Restaurar** (num servidor limpo, com o compose já no ar e os serviços parados, exceto o postgres):
+```bash
+gunzip -c backups/oia-AAAAMMDD-HHMM.sql.gz | docker exec -i oia-postgres psql -U oiaconta -d postgres
+```
+Teste a restauração de vez em quando — backup que nunca foi restaurado não é garantia.
+
+**Recomendado depois:** hoje todos os serviços conectam no banco como `oiaconta`, que é **superusuário** do Postgres (pode executar comandos no servidor do banco com `COPY ... TO PROGRAM`). O ideal é um usuário por serviço, só com acesso ao próprio banco, e deixar o superusuário apenas para o backup.
