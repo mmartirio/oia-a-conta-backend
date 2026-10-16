@@ -117,6 +117,13 @@ jobs:
             # quebra de linha no valor — remove isso aqui também, senão
             # vira uma linha extra quebrada no .env.
             echo "JWT_SECRET=$(printf '%s' "$JWT_SECRET" | tr -d '\r\n')" >> .env
+            # O docker compose dá prioridade à variável do SHELL sobre o .env —
+            # e a do shell é o secret cru (com a quebra de linha que o tr acima
+            # remove). Sem o unset, os containers criados por este deploy ficavam
+            # com uma chave JWT diferente dos criados fora dele (ex: "docker
+            # compose up" manual na VPS), e o gateway recusava todo token emitido
+            # pelo auth-service: qualquer login caía na hora (2026-10-16).
+            unset JWT_SECRET
             # "frontend" fica de fora de propósito: a tag :latest desse
             # serviço nunca existiu no GHCR (o CD do repo frontend só
             # publica :main/:sha) — isso fazia "docker compose pull"/"up -d"
