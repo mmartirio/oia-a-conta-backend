@@ -41,7 +41,6 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         "/api/whatsapp/publico",
         "/api/configuracoes/pausas/status",
         "/ws",
-        "/webhook",
         "/cardapio"
     );
 
@@ -54,7 +53,18 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
         boolean isPublic = PUBLIC_PATHS.stream().anyMatch(path::startsWith);
         if (isPublic) {
-            return chain.filter(exchange);
+            // Rota pública não tem JWT, então NINGUÉM preenche esses headers —
+            // remove os que o cliente mandou, senão chegariam aos serviços como
+            // se fossem a identidade verificada pelo gateway.
+            ServerWebExchange limpo = exchange.mutate()
+                .request(r -> r.headers(h -> {
+                    h.remove("X-User-Id");
+                    h.remove("X-User-Nome");
+                    h.remove("X-Restaurante-Id");
+                    h.remove("X-User-Role");
+                }))
+                .build();
+            return chain.filter(limpo);
         }
 
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);

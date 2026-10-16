@@ -6,6 +6,7 @@ import com.oiaaconta.billing.enums.ModalidadeOperacao;
 import com.oiaaconta.billing.enums.StatusContrato;
 import com.oiaaconta.billing.exception.LimiteTrocasModalidadeExcedidoException;
 import com.oiaaconta.billing.exception.MercadoPagoException;
+import com.oiaaconta.billing.security.AcessoTenant;
 import com.oiaaconta.billing.service.AssinaturaService;
 import com.oiaaconta.billing.service.BillingService;
 import lombok.RequiredArgsConstructor;
@@ -109,7 +110,16 @@ public class ContratoController {
 
     @GetMapping("/{id}/pagamentos")
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
-    public ResponseEntity<Page<Pagamento>> pagamentos(@PathVariable Long id, @PageableDefault(size = 20) Pageable pageable) {
+    public ResponseEntity<Page<Pagamento>> pagamentos(@PathVariable Long id,
+            @RequestHeader(value = "X-Restaurante-Id", required = false) Long restauranteId,
+            @PageableDefault(size = 20) Pageable pageable) {
+        // Dono só vê os pagamentos do PRÓPRIO contrato — antes qualquer id servia.
+        if (!AcessoTenant.isSuperAdmin()) {
+            Contrato meu = restauranteId != null ? billingService.buscarContratoDoRestaurante(restauranteId) : null;
+            if (meu == null || !meu.getId().equals(id)) {
+                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND);
+            }
+        }
         return ResponseEntity.ok(billingService.listarPagamentosDoContrato(id, pageable));
     }
 

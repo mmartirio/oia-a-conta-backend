@@ -34,12 +34,14 @@ public class WhatsappPublicoController {
     private final MensagemTemplateService mensagemService;
     private final MensagemWhatsappService mensagemWhatsappService;
     private final OrderClient orderClient;
+    private final com.oiaaconta.whatsapp.service.LimitePedidoPublico limitePedidoPublico;
 
     @PostMapping("/{restauranteId}/pedido")
     @Transactional
     public ResponseEntity<Map<String, Object>> criarPedidoPublico(
             @PathVariable Long restauranteId,
-            @RequestBody PedidoPublicoRequest request) {
+            @RequestBody PedidoPublicoRequest request,
+            @RequestHeader(value = "X-Forwarded-For", required = false) String forwardedFor) {
 
         if (request.getTelefone() == null || request.getTelefone().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("erro", "Telefone é obrigatório"));
@@ -55,6 +57,12 @@ public class WhatsappPublicoController {
         }
 
         String telefone = normalizarTelefone(request.getTelefone());
+        // Último IP do X-Forwarded-For = o que o nginx acrescentou (o primeiro é forjável).
+        String ip = forwardedFor != null && !forwardedFor.isBlank()
+            ? forwardedFor.substring(forwardedFor.lastIndexOf(',') + 1).trim() : null;
+        if (!limitePedidoPublico.permitir(telefone, ip)) {
+            return ResponseEntity.status(429).body(Map.of("erro", "Muitos pedidos em pouco tempo. Aguarde alguns minutos e tente de novo."));
+        }
 
         SessaoWhatsapp sessao = sessaoRepo.findByTelefoneAndRestauranteId(telefone, restauranteId)
             .orElseGet(() -> SessaoWhatsapp.builder()

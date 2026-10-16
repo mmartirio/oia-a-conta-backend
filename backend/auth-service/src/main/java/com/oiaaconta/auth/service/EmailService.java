@@ -56,9 +56,15 @@ public class EmailService {
         enviar(destinatario, "Seu código de verificação — Oia a Conta", html);
     }
 
+    // Só com LOG_CODIGO_VERIFICACAO=true (ambiente local, sem e-mail
+    // configurado) — antes bastava o e-mail estar sem senha pra o código ir
+    // pro log, inclusive em produção.
+    @org.springframework.beans.factory.annotation.Value("${LOG_CODIGO_VERIFICACAO:false}")
+    private boolean logCodigoVerificacao;
+
     @Async
     public void logCodigoDesenvolvimento(String destinatario, String codigo) {
-        if (mailPassword == null || mailPassword.isBlank()) {
+        if (logCodigoVerificacao && (mailPassword == null || mailPassword.isBlank())) {
             log.warn("\n" +
                 "╔══════════════════════════════════════════════╗\n" +
                 "║  [DEV] CÓDIGO DE VERIFICAÇÃO                ║\n" +

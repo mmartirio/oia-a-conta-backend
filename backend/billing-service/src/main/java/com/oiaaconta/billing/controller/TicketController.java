@@ -4,6 +4,7 @@ import com.oiaaconta.billing.entity.MensagemTicket;
 import com.oiaaconta.billing.entity.TicketSuporte;
 import com.oiaaconta.billing.enums.PrioridadeTicket;
 import com.oiaaconta.billing.enums.StatusTicket;
+import com.oiaaconta.billing.security.AcessoTenant;
 import com.oiaaconta.billing.service.TicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -37,8 +38,11 @@ public class TicketController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
-    public ResponseEntity<TicketSuporte> buscar(@PathVariable Long id) {
-        return ResponseEntity.ok(ticketService.buscarPorId(id));
+    public ResponseEntity<TicketSuporte> buscar(@PathVariable Long id,
+            @RequestHeader(value = "X-Restaurante-Id", required = false) Long restauranteId) {
+        TicketSuporte ticket = ticketService.buscarPorId(id);
+        AcessoTenant.exigirMesmoRestaurante(ticket.getRestauranteId(), restauranteId);
+        return ResponseEntity.ok(ticket);
     }
 
     @PostMapping
@@ -72,9 +76,10 @@ public class TicketController {
             @PathVariable Long id,
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-User-Nome", required = false) String userNome,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-Restaurante-Id", required = false) Long restauranteId,
             @RequestBody Map<String, String> body) {
-        String tipo = "SUPER_ADMIN".equals(userRole) ? "SUPORTE" : "CLIENTE";
+        AcessoTenant.exigirMesmoRestaurante(ticketService.buscarPorId(id).getRestauranteId(), restauranteId);
+        String tipo = AcessoTenant.isSuperAdmin() ? "SUPORTE" : "CLIENTE";
         return ResponseEntity.status(201).body(
             ticketService.adicionarMensagem(id, userId, userNome, tipo, body.get("mensagem")));
     }

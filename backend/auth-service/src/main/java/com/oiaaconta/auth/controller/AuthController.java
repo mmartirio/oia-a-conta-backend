@@ -33,11 +33,6 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request));
     }
 
-    @PostMapping("/registro")
-    public ResponseEntity<AuthResponse> registro(@Valid @RequestBody RegistroRequest request) {
-        return ResponseEntity.ok(authService.registro(request));
-    }
-
     /** Passo 1: iniciar registro com envio de código */
     @PostMapping("/registro-iniciar")
     public ResponseEntity<Map<String, String>> registroIniciar(@Valid @RequestBody RegistroRequest request,
@@ -45,13 +40,13 @@ public class AuthController {
         return ResponseEntity.status(202).body(authService.registroIniciar(request, ipDoCliente(httpRequest)));
     }
 
-    // Prioriza X-Forwarded-For (a requisição passa pelo api-gateway antes de
-    // chegar aqui, então request.getRemoteAddr() seria o IP do gateway, não
-    // do cliente) — cai pro IP direto da conexão se o header não vier.
+    // Usa o ÚLTIMO IP do X-Forwarded-For — o que o nginx acrescenta com o IP
+    // real da conexão. O primeiro é o que o próprio cliente mandou (forjável).
     private String ipDoCliente(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+            String[] ips = forwarded.split(",");
+            return ips[ips.length - 1].trim();
         }
         return request.getRemoteAddr();
     }

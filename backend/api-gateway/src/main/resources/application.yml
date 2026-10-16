@@ -59,7 +59,9 @@ spring:
         - id: whatsapp-service
           uri: lb://whatsapp-service
           predicates:
-            - Path=/api/whatsapp/**, /webhook/**
+            # /webhook/** NÃO é roteado: a Evolution chama o whatsapp-service
+            # direto pela rede interna — exposto, qualquer um injetava mensagens.
+            - Path=/api/whatsapp/**
 
         - id: ifood-service
           uri: lb://ifood-service

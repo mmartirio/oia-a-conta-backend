@@ -14,5 +14,7 @@ public class CriarSuperAdminRequest {
     @Email(message = "E-mail inválido")
     private String email;
 
+    // Opcional na edição (vazio = mantém a atual); se informada, mínimo 12.
+    @jakarta.validation.constraints.Pattern(regexp = "^$|^.{12,}$", message = "Senha de SUPER_ADMIN deve ter no mínimo 12 caracteres")
     private String senha;
 }

@@ -21,7 +21,8 @@ public class EmailVerificacao {
     @Column(nullable = false, length = 150)
     private String email;
 
-    @Column(nullable = false, length = 6)
+    // SHA-256 (hex) do código de 6 dígitos — nunca o código em si.
+    @Column(nullable = false, length = 64)
     private String codigo;
 
     @Column(nullable = false)

@@ -150,7 +150,9 @@ public class AuthService {
             throw new BusinessException("Código inválido ou expirado");
         }
 
-        if (!verificacao.getCodigo().equals(codigo)) {
+        if (!java.security.MessageDigest.isEqual(
+                verificacao.getCodigo().getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                hashCodigo(codigo).getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
             verificacao.setTentativas(verificacao.getTentativas() + 1);
             if (verificacao.getTentativas() >= MAX_TENTATIVAS_CODIGO) {
                 // Invalida de vez — sem isso, o código de 6 dígitos seria
@@ -203,64 +205,6 @@ public class AuthService {
     }
 
     // ─── Registro direto (1 etapa) ───────────────────────────────────────────
-
-    @Transactional
-    @SuppressWarnings("null")
-    public AuthResponse registro(RegistroRequest request) {
-        if (usuarioRepository.existsByEmail(request.getEmail())) {
-            throw new BusinessException(
-                "Este e-mail já está cadastrado. Faça login ou utilize outro e-mail.");
-        }
-        if (restauranteRepository.existsByNomeIgnoreCase(request.getNomeRestaurante())) {
-            throw new BusinessException(
-                "Já existe uma empresa com o nome \"" + request.getNomeRestaurante() +
-                "\" cadastrada. Verifique o nome ou entre em contato com o suporte.");
-        }
-
-        String slug = generateSlug(request.getNomeRestaurante());
-        if (restauranteRepository.existsBySlug(slug)) {
-            slug = slug + "-" + System.currentTimeMillis();
-        }
-
-        Restaurante restaurante = restauranteRepository.save(
-            Restaurante.builder()
-                .nome(request.getNomeRestaurante())
-                .slug(slug)
-                .emailResponsavel(request.getEmail())
-                .cnpj(request.getCnpj())
-                .telefone(request.getTelefone())
-                .plano("BASICO")
-                .ativo(true)
-                .build()
-        );
-
-        Grupo grupoAdministrador = grupoService.criarGruposPadrao(restaurante.getId());
-
-        Usuario admin = usuarioRepository.save(
-            Usuario.builder()
-                .restaurante(restaurante)
-                .grupo(grupoAdministrador)
-                .donoConta(true)
-                .nome(request.getNomeAdmin())
-                .email(request.getEmail())
-                .senha(passwordEncoder.encode(request.getSenha()))
-                .role(Role.ADMIN)
-                .ativo(true)
-                .emailVerificado(true)
-                .build()
-        );
-
-        // Endpoint legado de registro em etapa única, sem o fluxo de aceite
-        // de contrato do registro-iniciar — sem dados de plano/aceite pra
-        // anexar o PDF do contrato.
-        emailService.enviarBoasVindas(request.getEmail(), request.getNomeAdmin(), restaurante.getNome(),
-            request.getCnpj(), request.getTelefone(),
-            null, null, null, null, null);
-        criarInstanciaWhatsapp(restaurante);
-        criarContratoBilling(restaurante.getId(), request.getPlanoId(), request.getModalidadeOperacao());
-        criarCategoriasPadraoCatalogo(restaurante.getId());
-        return buildAuthResponse(admin);
-    }
 
     // ─── Público ─────────────────────────────────────────────────────────────
 
@@ -456,13 +400,24 @@ public class AuthService {
         }
     }
 
+    private static String hashCodigo(String codigo) {
+        try {
+            byte[] h = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(codigo.trim().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(h);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     @SuppressWarnings("null")
     private void enviarCodigo(String email, String nome) {
         String codigo = String.format("%06d", RANDOM.nextInt(1_000_000));
         emailVerificacaoRepository.invalidarTodosPorEmail(email);
         emailVerificacaoRepository.save(EmailVerificacao.builder()
             .email(email)
-            .codigo(codigo)
+            // Só o hash vai pro banco — o código em si só existe no e-mail.
+            .codigo(hashCodigo(codigo))
             .expiradoEm(LocalDateTime.now().plusMinutes(15))
             .build());
         emailService.enviarCodigoVerificacao(email, nome, codigo);

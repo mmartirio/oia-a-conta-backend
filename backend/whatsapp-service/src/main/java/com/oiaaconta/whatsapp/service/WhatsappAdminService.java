@@ -1,5 +1,6 @@
 package com.oiaaconta.whatsapp.service;
 
+
 import com.oiaaconta.whatsapp.client.AuthClient;
 import com.oiaaconta.whatsapp.dto.WhatsappStatusDto;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +33,7 @@ public class WhatsappAdminService {
     @Value("${evolution.api.instance:oiaaconta}")
     private String instanceNamePadrao;
 
-    @Value("${evolution.webhook.url:http://oia-gateway:8080/webhook/evolution}")
+    @Value("${evolution.webhook.url:http://whatsapp-service:8086/webhook/evolution}")
     private String webhookUrl;
 
     @Value("${evolution.webhook.secret:}")
@@ -164,6 +165,28 @@ public class WhatsappAdminService {
                 new HttpEntity<>(body, headers()),
                 Void.class);
             configurarWebhookSeExterno(instancia);
+        }
+    }
+
+    // Reaponta o webhook de TODAS as instâncias da Evolution pra URL atual
+    // (interna) a cada subida — instâncias antigas podiam estar apontando pra
+    // URL pública /webhook/evolution, que deixou de ser roteada pelo gateway
+    // (ficava aberta: qualquer um injetava mensagens falsas de WhatsApp).
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void reconfigurarWebhooksNaSubida() {
+        try {
+            ResponseEntity<List<Map<String, Object>>> resp = restTemplate.exchange(
+                apiUrl + "/instance/fetchInstances", HttpMethod.GET, new HttpEntity<>(headers()),
+                new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+            List<Map<String, Object>> instancias = resp.getBody() != null ? resp.getBody() : List.of();
+            for (Map<String, Object> inst : instancias) {
+                Object nome = inst.get("name");
+                if (nome == null && inst.get("instance") instanceof Map<?, ?> m) nome = m.get("instanceName");
+                if (nome != null) configurarWebhookSeExterno(nome.toString());
+            }
+            log.info("Webhook reapontado em {} instância(s) da Evolution para {}", instancias.size(), webhookUrl);
+        } catch (Exception e) {
+            log.warn("Não foi possível reapontar os webhooks da Evolution na subida: {}", e.getMessage());
         }
     }
 

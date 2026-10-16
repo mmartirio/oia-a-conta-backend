@@ -20,7 +20,7 @@ public class RegistroRequest {
     private String email;
 
     @NotBlank(message = "Senha obrigatória")
-    @Size(min = 6, message = "Senha deve ter no mínimo 6 caracteres")
+    @Size(min = 8, message = "Senha deve ter no mínimo 8 caracteres")
     private String senha;
 
     private String cnpj;

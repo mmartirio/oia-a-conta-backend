@@ -30,10 +30,13 @@ public class IfoodMerchant {
     @Column(name = "merchant_nome", length = 200)
     private String merchantNome;
 
+    // Cifrados no banco — ver TokenCriptografadoConverter.
     @Column(name = "access_token", columnDefinition = "TEXT")
+    @Convert(converter = com.oiaaconta.ifood.util.TokenCriptografadoConverter.class)
     private String accessToken;
 
     @Column(name = "refresh_token", columnDefinition = "TEXT")
+    @Convert(converter = com.oiaaconta.ifood.util.TokenCriptografadoConverter.class)
     private String refreshToken;
 
     @Column(name = "expira_em")

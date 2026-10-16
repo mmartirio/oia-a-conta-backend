@@ -16,6 +16,8 @@ public class UsuarioRequest {
     @Email(message = "E-mail inválido")
     private String email;
 
+    // Opcional na edição (vazio = mantém a atual); se informada, mínimo 8.
+    @jakarta.validation.constraints.Pattern(regexp = "^$|^.{8,}$", message = "Senha deve ter no mínimo 8 caracteres")
     private String senha;
 
     @NotNull(message = "Role obrigatória")
