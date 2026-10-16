@@ -109,11 +109,20 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                 }
             }
 
+            // SUPER_ADMIN não tem restaurante: sem o header (em vez do texto
+            // "null", que quebrava a conversão pra Long nos serviços com 400).
+            Object restauranteIdClaim = claims.get("restauranteId");
             ServerWebExchange mutated = exchange.mutate()
-                .request(r -> r.header("X-User-Id", String.valueOf(claims.get("userId")))
-                    .header("X-User-Nome", nome)
-                    .header("X-Restaurante-Id", String.valueOf(claims.get("restauranteId")))
-                    .header("X-User-Role", roleHeader))
+                .request(r -> {
+                    r.header("X-User-Id", String.valueOf(claims.get("userId")))
+                        .header("X-User-Nome", nome)
+                        .header("X-User-Role", roleHeader);
+                    if (restauranteIdClaim != null) {
+                        r.header("X-Restaurante-Id", String.valueOf(restauranteIdClaim));
+                    } else {
+                        r.headers(h -> h.remove("X-Restaurante-Id"));
+                    }
+                })
                 .build();
 
             return chain.filter(mutated);

@@ -24,6 +24,14 @@ public interface ContratoRepository extends JpaRepository<Contrato, Long> {
     @EntityGraph(attributePaths = "plano")
     Page<Contrato> findAll(@NonNull Pageable pageable);
 
+    // Mesmo motivo do findAll acima: os endpoints do gestor que devolvem o
+    // contrato buscado por id (alterar status/modalidade, pagamento manual)
+    // quebravam com "No serializer found for ... ByteBuddyInterceptor".
+    @Override
+    @NonNull
+    @EntityGraph(attributePaths = "plano")
+    java.util.Optional<Contrato> findById(@NonNull Long id);
+
     @Query("""
         SELECT c FROM Contrato c
         WHERE c.status IN ('ATIVO','TRIAL','INADIMPLENTE')
