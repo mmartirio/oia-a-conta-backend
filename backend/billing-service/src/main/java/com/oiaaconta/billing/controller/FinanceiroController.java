@@ -1,6 +1,7 @@
 package com.oiaaconta.billing.controller;
 
 import com.oiaaconta.billing.service.BillingService;
+import com.oiaaconta.billing.service.PainelGestorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -8,6 +9,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -16,6 +18,21 @@ import java.util.Map;
 public class FinanceiroController {
 
     private final BillingService billingService;
+    private final PainelGestorService painelGestorService;
+
+    // Números do painel do gestor (KPIs, receita 12 meses, o que exige ação).
+    @GetMapping("/resumo")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Map<String, Object>> resumo() {
+        return ResponseEntity.ok(painelGestorService.resumo());
+    }
+
+    // Todos os pagamentos de todas as empresas, com contrato/plano — 1 consulta.
+    @GetMapping("/pagamentos")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<List<Map<String, Object>>> pagamentos() {
+        return ResponseEntity.ok(painelGestorService.pagamentos());
+    }
 
     @GetMapping("/receita")
     @PreAuthorize("hasRole('SUPER_ADMIN')")

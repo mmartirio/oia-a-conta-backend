@@ -51,4 +51,8 @@ public interface ContratoRepository extends JpaRepository<Contrato, Long> {
     List<Contrato> findByStatusOrderByCreatedAtDesc(StatusContrato status);
 
     Optional<Contrato> findByMpPreapprovalId(String mpPreapprovalId);
+
+    // Lista completa com o plano carregado (painel do gestor).
+    @EntityGraph(attributePaths = "plano")
+    List<Contrato> findAllByOrderByCreatedAtDesc();
 }

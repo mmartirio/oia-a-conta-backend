@@ -36,6 +36,13 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.listarPorRestaurante(restauranteId));
     }
 
+    // Tickets de uma empresa — ficha da empresa no painel do gestor.
+    @GetMapping("/restaurante/{restauranteId}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<List<TicketSuporte>> porRestaurante(@PathVariable Long restauranteId) {
+        return ResponseEntity.ok(ticketService.listarPorRestaurante(restauranteId));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     public ResponseEntity<TicketSuporte> buscar(@PathVariable Long id,
