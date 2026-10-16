@@ -36,6 +36,10 @@ public class Estoque {
     @Column(nullable = false)
     private boolean controlado = false;
 
+    // Custo médio ponderado do saldo — valor em estoque = quantidade × custo médio.
+    @Column(name = "custo_medio", precision = 12, scale = 4)
+    private java.math.BigDecimal custoMedio;
+
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;

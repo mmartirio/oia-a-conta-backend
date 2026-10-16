@@ -15,6 +15,8 @@ public class MovimentacaoEstoqueResponse {
     private int quantidade;
     private int quantidadeResultante;
     private String motivo;
+    private java.math.BigDecimal custoUnitario;
+    private java.math.BigDecimal valorTotal;
     private String referenciaExterna;
     private String criadoPorNome;
     private LocalDateTime criadoEm;

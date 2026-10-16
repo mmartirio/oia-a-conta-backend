@@ -82,6 +82,19 @@ public class EstoqueService {
         if (novaQuantidade < 0) {
             throw new BusinessException("Saldo insuficiente: estoque atual é " + quantidadeAnterior);
         }
+        // Entrada com custo (compra de insumo): atualiza o custo médio
+        // ponderado do saldo — (saldo × custo médio + qtd × custo) / novo saldo.
+        java.math.BigDecimal custoUnitario = null;
+        java.math.BigDecimal valorTotal = null;
+        if (request.getTipo() == TipoMovimentacaoEstoque.ENTRADA && request.getCustoUnitario() != null) {
+            custoUnitario = request.getCustoUnitario();
+            valorTotal = custoUnitario.multiply(java.math.BigDecimal.valueOf(delta)).setScale(2, java.math.RoundingMode.HALF_UP);
+            java.math.BigDecimal custoAnterior = estoque.getCustoMedio() != null ? estoque.getCustoMedio() : custoUnitario;
+            java.math.BigDecimal base = custoAnterior.multiply(java.math.BigDecimal.valueOf(Math.max(quantidadeAnterior, 0)));
+            estoque.setCustoMedio(novaQuantidade > 0
+                ? base.add(valorTotal).divide(java.math.BigDecimal.valueOf(novaQuantidade), 4, java.math.RoundingMode.HALF_UP)
+                : custoUnitario);
+        }
         estoque.setQuantidade(novaQuantidade);
         estoqueRepository.save(estoque);
 
@@ -89,6 +102,7 @@ public class EstoqueService {
             .restauranteId(restauranteId).produtoId(produtoId)
             .tipo(request.getTipo()).quantidade(delta).quantidadeResultante(novaQuantidade)
             .motivo(request.getMotivo())
+            .custoUnitario(custoUnitario).valorTotal(valorTotal)
             .criadoPorId(usuarioId).criadoPorNome(usuarioNome)
             .build());
 
@@ -154,6 +168,60 @@ public class EstoqueService {
                 .build()));
     }
 
+    // Aba Insumos do Financeiro: entradas (compras) do período com custo e o
+    // valor atual do estoque (saldo × custo médio de cada produto).
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Object> resumoFinanceiro(Long restauranteId, java.time.LocalDateTime inicio, java.time.LocalDateTime fim) {
+        java.util.Map<Long, String> nomes = new java.util.HashMap<>();
+        produtoRepository.findByRestauranteIdOrderByNomeAsc(restauranteId).forEach(p -> nomes.put(p.getId(), p.getNome()));
+
+        java.util.List<java.util.Map<String, Object>> entradas = new java.util.ArrayList<>();
+        java.math.BigDecimal totalEntradas = java.math.BigDecimal.ZERO;
+        int semCusto = 0;
+        for (MovimentacaoEstoque m : movimentacaoRepository
+                .findByRestauranteIdAndTipoAndCriadoEmBetweenOrderByCriadoEmDesc(restauranteId, TipoMovimentacaoEstoque.ENTRADA, inicio, fim)) {
+            java.util.Map<String, Object> e = new java.util.LinkedHashMap<>();
+            e.put("id", m.getId());
+            e.put("produtoId", m.getProdutoId());
+            e.put("produtoNome", nomes.getOrDefault(m.getProdutoId(), "Produto #" + m.getProdutoId()));
+            e.put("quantidade", m.getQuantidade());
+            e.put("custoUnitario", m.getCustoUnitario());
+            e.put("valorTotal", m.getValorTotal());
+            e.put("motivo", m.getMotivo());
+            e.put("criadoPorNome", m.getCriadoPorNome());
+            e.put("criadoEm", m.getCriadoEm());
+            entradas.add(e);
+            if (m.getValorTotal() != null) totalEntradas = totalEntradas.add(m.getValorTotal());
+            else semCusto++;
+        }
+
+        java.math.BigDecimal valorEmEstoque = java.math.BigDecimal.ZERO;
+        java.util.List<java.util.Map<String, Object>> itensEstoque = new java.util.ArrayList<>();
+        for (Estoque est : estoqueRepository.findByRestauranteIdAndControladoTrue(restauranteId)) {
+            if (est.getCustoMedio() == null || est.getQuantidade() <= 0) continue;
+            java.math.BigDecimal valor = est.getCustoMedio().multiply(java.math.BigDecimal.valueOf(est.getQuantidade()))
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+            valorEmEstoque = valorEmEstoque.add(valor);
+            java.util.Map<String, Object> i2 = new java.util.LinkedHashMap<>();
+            i2.put("produtoId", est.getProdutoId());
+            i2.put("produtoNome", nomes.getOrDefault(est.getProdutoId(), "Produto #" + est.getProdutoId()));
+            i2.put("quantidade", est.getQuantidade());
+            i2.put("custoMedio", est.getCustoMedio());
+            i2.put("valor", valor);
+            itensEstoque.add(i2);
+        }
+        itensEstoque.sort((a, b) -> ((java.math.BigDecimal) b.get("valor")).compareTo((java.math.BigDecimal) a.get("valor")));
+
+        java.util.Map<String, Object> r = new java.util.LinkedHashMap<>();
+        r.put("totalEntradas", totalEntradas);
+        r.put("qtdEntradas", entradas.size());
+        r.put("entradasSemCusto", semCusto);
+        r.put("valorEmEstoque", valorEmEstoque);
+        r.put("entradas", entradas);
+        r.put("itensEstoque", itensEstoque);
+        return r;
+    }
+
     private EstoqueResponse toResponse(Produto produto, Estoque estoque) {
         int quantidade = estoque != null ? estoque.getQuantidade() : 0;
         int quantidadeMinima = estoque != null ? estoque.getQuantidadeMinima() : 0;
@@ -163,6 +231,10 @@ public class EstoqueService {
             .quantidade(quantidade).quantidadeMinima(quantidadeMinima)
             .controlado(controlado)
             .abaixoDoMinimo(controlado && quantidade <= quantidadeMinima)
+            .custoMedio(estoque != null ? estoque.getCustoMedio() : null)
+            .valorEmEstoque(estoque != null && estoque.getCustoMedio() != null && quantidade > 0
+                ? estoque.getCustoMedio().multiply(java.math.BigDecimal.valueOf(quantidade)).setScale(2, java.math.RoundingMode.HALF_UP)
+                : null)
             .build();
     }
 
@@ -171,6 +243,7 @@ public class EstoqueService {
             .id(m.getId()).produtoId(m.getProdutoId()).tipo(m.getTipo())
             .quantidade(m.getQuantidade()).quantidadeResultante(m.getQuantidadeResultante())
             .motivo(m.getMotivo()).referenciaExterna(m.getReferenciaExterna())
+            .custoUnitario(m.getCustoUnitario()).valorTotal(m.getValorTotal())
             .criadoPorNome(m.getCriadoPorNome()).criadoEm(m.getCriadoEm())
             .build();
     }

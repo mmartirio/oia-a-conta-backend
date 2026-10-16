@@ -13,4 +13,8 @@ public class MovimentoEstoqueRequest {
     private Integer quantidade; // sempre positivo; o sinal é definido pelo tipo
 
     private String motivo;
+
+    // Opcional, só ENTRADA: custo de cada unidade comprada.
+    @jakarta.validation.constraints.DecimalMin(value = "0", message = "Custo não pode ser negativo")
+    private java.math.BigDecimal custoUnitario;
 }

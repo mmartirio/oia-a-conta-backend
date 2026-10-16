@@ -55,6 +55,10 @@ public final class RegraPermissao {
         new Regra("CONFIG_FRETE", "/api/configuracoes/frete", null),
 
         new Regra("FINANCEIRO", "/api/financeiro", null),
+        // Valores de compras/estoque (aba Insumos do Financeiro) — leitura
+        // financeira, então exige FINANCEIRO (o resto de /api/estoque só
+        // exige ESTOQUE na escrita).
+        new Regra("FINANCEIRO", "/api/estoque/financeiro", null),
         new Regra("FINANCEIRO", "/api/despesas", null),
 
         new Regra("SUPORTE", "/api/tickets", null),

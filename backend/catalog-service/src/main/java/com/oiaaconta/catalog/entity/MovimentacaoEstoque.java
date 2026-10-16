@@ -38,6 +38,13 @@ public class MovimentacaoEstoque {
     @Column(length = 300)
     private String motivo;
 
+    // Só ENTRADA (compra de insumo): custo por unidade e total da compra.
+    @Column(name = "custo_unitario", precision = 12, scale = 4)
+    private java.math.BigDecimal custoUnitario;
+
+    @Column(name = "valor_total", precision = 12, scale = 2)
+    private java.math.BigDecimal valorTotal;
+
     @Column(name = "referencia_externa", length = 50)
     private String referenciaExterna;
 

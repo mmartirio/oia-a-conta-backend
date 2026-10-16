@@ -12,4 +12,6 @@ public class EstoqueResponse {
     private int quantidadeMinima;
     private boolean controlado;
     private boolean abaixoDoMinimo;
+    private java.math.BigDecimal custoMedio;
+    private java.math.BigDecimal valorEmEstoque;
 }

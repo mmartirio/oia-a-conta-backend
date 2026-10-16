@@ -30,6 +30,17 @@ public class EstoqueController {
         return ResponseEntity.ok(estoqueService.listar(restauranteId));
     }
 
+    // Compras de insumos (entradas com custo) e valor do estoque — aba
+    // Insumos do Financeiro. Fica antes de /{produtoId} pra não colidir.
+    @GetMapping("/financeiro")
+    @PreAuthorize("hasAnyRole('ADMIN','CAIXA','SUPER_ADMIN')")
+    public ResponseEntity<java.util.Map<String, Object>> financeiro(
+            @RequestHeader("X-Restaurante-Id") Long restauranteId,
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) java.time.LocalDateTime dataInicio,
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) java.time.LocalDateTime dataFim) {
+        return ResponseEntity.ok(estoqueService.resumoFinanceiro(restauranteId, dataInicio, dataFim));
+    }
+
     @GetMapping("/alertas")
     public ResponseEntity<List<EstoqueResponse>> alertas(
             @RequestHeader("X-Restaurante-Id") Long restauranteId) {
